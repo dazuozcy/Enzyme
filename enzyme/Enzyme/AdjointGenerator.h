@@ -2611,7 +2611,7 @@ public:
     case Instruction::Mul:
     case Instruction::Sub:
     case Instruction::Add: {
-      if (looseTypeAnalysis) {
+      if (looseTypeAnalysis || BO.getType()->isIntOrIntVectorTy()) {
         llvm::errs()
             << "warning: binary operator is integer and assumed constant: "
             << BO << "\n";
