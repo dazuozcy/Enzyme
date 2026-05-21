@@ -48,7 +48,9 @@ jobs:
         build: ["Release", "Debug"]
         os: [ubuntu-22.04]
         llvm: [20]
-    timeout-minutes: 60 
+        include:
+          - llvm: 20
+    timeout-minutes: 60
     steps:
     - name: add llvm
       run: |
@@ -57,7 +59,10 @@ jobs:
         sudo apt-get update && sudo apt-get install -y cmake gcc g++ llvm-${{ matrix.llvm }}-dev ninja-build pip
         sudo python3 -m pip install --upgrade pip lit
     - name: add flang
-      run: sudo apt install --no-install-recommends clang-${{ matrix.llvm }} flang-${{ matrix.llvm }}
+      run: |
+        sudo apt install --no-install-recommends clang-${{ matrix.llvm }} flang-${{ matrix.llvm }}
+        which flang
+        which flang-${{ matrix.llvm }}
     - uses: actions/checkout@v4
     - name: generate build system
       run: |
