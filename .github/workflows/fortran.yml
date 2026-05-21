@@ -56,11 +56,8 @@ jobs:
       run: |
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
         sudo apt-add-repository "deb http://apt.llvm.org/`lsb_release -c | cut -f2`/ llvm-toolchain-`lsb_release -c | cut -f2`-${{ matrix.llvm }} main"
-        sudo apt-get update && sudo apt-get install -y cmake gcc g++ llvm-${{ matrix.llvm }}-dev ninja-build pip
+        sudo apt-get update && sudo apt-get install -y cmake gcc g++ llvm-${{ matrix.llvm }}-dev ninja-build pip clang-${{ matrix.llvm }} flang-${{ matrix.llvm }}
         sudo python3 -m pip install --upgrade pip lit
-    - name: add flang
-      run: |
-        sudo apt install --no-install-recommends clang-${{ matrix.llvm }} flang-${{ matrix.llvm }}
         which flang
         which flang-${{ matrix.llvm }}
     - uses: actions/checkout@v4
