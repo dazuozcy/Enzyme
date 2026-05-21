@@ -1,7 +1,7 @@
-! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O0 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O0 -o -S %t && %fc -O0 %t -o %t1 && %t1 | FileCheck %s; fi
-! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O1 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O1 -o -S %t && %fc -O1 %t -o %t1 && %t1 | FileCheck %s; fi
-! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O2 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O2 -o -S %t && %fc -O2 %t -o %t1 && %t1 | FileCheck %s; fi
-! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O3 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O3 -o -S %t && %fc -O3 %t -o %t1 && %t1 | FileCheck %s; fi
+! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O0 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O0 -S -o %t && %fc -O0 %t -o %t1 && %t1 | FileCheck %s; fi
+! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O1 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O1 -S -o %t && %fc -O1 %t -o %t1 && %t1 | FileCheck %s; fi
+! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O2 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O2 -S -o %t && %fc -O2 %t -o %t1 && %t1 | FileCheck %s; fi
+! RUN: if [ %llvmver -ge 13 ]; then %fc -emit-llvm -S -O3 %loadFortran %s -o /dev/stdout | %opt %loadEnzyme -passes=enzyme -o /dev/stdout | %opt -O3 -S -o %t && %fc -O3 %t -o %t1 && %t1 | FileCheck %s; fi
 
 module math
 contains
