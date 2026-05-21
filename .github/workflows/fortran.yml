@@ -16,8 +16,9 @@ on:
       - 'enzyme/CMakeLists.txt'
       - 'enzyme/CMakePresets.json'
   pull_request:
-    branches: 
-    - main
+    # TODO: TEMPORARY
+    # branches: 
+    # - main
     paths:
       - '.github/workflows/fortran.yml'
       - 'enzyme/Enzyme/**'
