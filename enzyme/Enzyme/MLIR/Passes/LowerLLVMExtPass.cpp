@@ -59,15 +59,15 @@ LogicalResult tryLoweringToAlloca(llvm_ext::AllocOp alloc,
   }
 
   OpBuilder builder(alloc);
-  auto alloca = LLVM::AllocaOp::create(builder, alloc.getLoc(),
+  auto alloca = builder.create<LLVM::AllocaOp>(alloc.getLoc(),
                                        alloc.getResult().getType(),
                                        builder.getI8Type(), alloc.getSize());
   alloc.getResult().replaceAllUsesWith(alloca.getResult());
 
-  LLVM::LifetimeStartOp::create(builder, alloc.getLoc(), alloca.getResult());
+  builder.create<LLVM::LifetimeStartOp>(alloc.getLoc(), ~0ULL, alloca.getResult());
 
   builder.setInsertionPoint(free);
-  LLVM::LifetimeEndOp::create(builder, alloc.getLoc(), alloca.getResult());
+  builder.create<LLVM::LifetimeEndOp>(alloc.getLoc(), ~0ULL, alloca.getResult());
 
   free->erase();
   alloc->erase();
@@ -91,11 +91,11 @@ void lowerAlloc(llvm_ext::AllocOp alloc, uint64_t staticThreshold) {
         /*isVarArg=*/false);
 
     mallocFn =
-        LLVM::LLVMFuncOp::create(builder, alloc.getLoc(), "malloc", fnType);
+        builder.create<LLVM::LLVMFuncOp>(alloc.getLoc(), "malloc", fnType);
   }
 
   OpBuilder builder(alloc);
-  auto mallocCall = LLVM::CallOp::create(builder, alloc.getLoc(), mallocFn,
+  auto mallocCall = builder.create<LLVM::CallOp>(alloc.getLoc(), mallocFn,
                                          alloc->getOperands());
   alloc.getResult().replaceAllUsesWith(mallocCall.getResult());
   alloc.erase();
@@ -114,11 +114,11 @@ void lowerFree(llvm_ext::FreeOp free) {
         LLVM::LLVMPointerType::get(free.getContext()),
         /*isVarArg=*/false);
 
-    freeFn = LLVM::LLVMFuncOp::create(builder, free.getLoc(), "free", fnType);
+    freeFn = builder.create<LLVM::LLVMFuncOp>(free.getLoc(), "free", fnType);
   }
 
   OpBuilder builder(free);
-  LLVM::CallOp::create(builder, free.getLoc(), freeFn, free->getOperands());
+  builder.create<LLVM::CallOp>(free.getLoc(), freeFn, free->getOperands());
 
   free.erase();
 }

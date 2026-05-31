@@ -300,8 +300,8 @@ struct BatchDiffPass : public enzyme::impl::BatchDiffPassBase<BatchDiffPass> {
           IntegerAttr newWidthAttr =
               IntegerAttr::get(firstDiffOp.getWidthAttr().getType(), width);
 
-          auto newDiffOp = ForwardDiffOp::create(
-              builder, loc, out_ty, firstDiffOp.getFnAttr(), in_args,
+          auto newDiffOp = builder.create<ForwardDiffOp>(
+              loc, out_ty, firstDiffOp.getFnAttr(), in_args,
               newInActivity, newRetActivity, newWidthAttr,
               firstDiffOp.getStrongZeroAttr());
 
@@ -631,7 +631,7 @@ struct BatchDiffPass : public enzyme::impl::BatchDiffPassBase<BatchDiffPass> {
               IntegerAttr::get(firstDiffOp.getWidthAttr().getType(), width);
 
           auto newDiffOp =
-              AutoDiffOp::create(builder, loc, out_ty, firstDiffOp.getFnAttr(),
+              builder.create<AutoDiffOp>(loc, out_ty, firstDiffOp.getFnAttr(),
                                  in_args, newInActivity, newRetActivity,
                                  newWidthAttr, firstDiffOp.getStrongZeroAttr());
 

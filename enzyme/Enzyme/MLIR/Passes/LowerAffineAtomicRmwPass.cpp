@@ -35,7 +35,7 @@ struct LowerAffineAtomicRmwPass
       enzyme::computeAffineIndices(builder, rmw.getLoc(), rmw.getMap(),
                                    rmw.getIndices(), indices);
       rmw.getResult().replaceAllUsesWith(
-          memref::AtomicRMWOp::create(builder, rmw.getLoc(),
+          builder.create<memref::AtomicRMWOp>(rmw.getLoc(),
                                       arith::AtomicRMWKind::addf,
                                       rmw.getValue(), rmw.getMemref(), indices)
               .getResult());

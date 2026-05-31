@@ -20,8 +20,8 @@ linalg::GenericOp Utils::adjointToGeneric(enzyme::GenericAdjointOp &op,
   auto indexingMaps = op.getIndexingMapsAttr();
   auto iteratorTypes = op.getIteratorTypesAttr();
 
-  auto genericOp = mlir::linalg::GenericOp::create(
-      builder, loc, TypeRange(resultTensors), ValueRange(inputs),
+  auto genericOp = builder.create<mlir::linalg::GenericOp>(
+      loc, TypeRange(resultTensors), ValueRange(inputs),
       ValueRange(outputs), ArrayAttr(indexingMaps), ArrayAttr(iteratorTypes),
       StringAttr(), StringAttr());
 
@@ -156,7 +156,7 @@ Value mlir::enzyme::getConcatValue(OpBuilder &builder, Location loc,
                                    ArrayRef<Value> argList) {
   int64_t width = argList.size();
   Type out_type = mlir::enzyme::getConcatType(argList.front(), width);
-  mlir::Value out = enzyme::ConcatOp::create(builder, loc, out_type, argList);
+  mlir::Value out = builder.create<enzyme::ConcatOp>(loc, out_type, argList);
   return out;
 }
 
@@ -164,7 +164,7 @@ Value mlir::enzyme::getExtractValue(OpBuilder &builder, Location loc,
                                     Type argTy, Value val, int64_t index) {
   // Extract the original output from the tensorized output at the given index.
   IntegerAttr indexAttr = builder.getI64IntegerAttr(index);
-  Value out = enzyme::ExtractOp::create(builder, loc, argTy, val, indexAttr);
+  Value out = builder.create<enzyme::ExtractOp>(loc, argTy, val, indexAttr);
   return out;
 }
 
@@ -172,7 +172,7 @@ void mlir::enzyme::computeAffineIndices(OpBuilder &builder, Location loc,
                                         AffineMap map, ValueRange operands,
                                         SmallVectorImpl<Value> &indices) {
   for (unsigned i = 0; i < map.getNumResults(); i++) {
-    indices.push_back(affine::AffineApplyOp::create(
-        builder, loc, map.getSubMap({i}), operands));
+    indices.push_back(builder.create<affine::AffineApplyOp>(
+        loc, map.getSubMap({i}), operands));
   }
 }

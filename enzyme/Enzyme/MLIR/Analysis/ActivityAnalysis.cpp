@@ -864,11 +864,11 @@ static bool isValuePotentiallyUsedAsPointer(Value val) {
           auto parentOp = termIface->getParentOp();
           for (auto &successor : successors) {
             OperandRange operandRange =
-                termIface.getSuccessorOperands(successor);
+                termIface.getSuccessorOperands(RegionBranchPoint(termIface->getParentRegion()));
             ValueRange targetValues =
                 successor.isParent()
                     ? parentOp->getResults()
-                    : regionIface.getSuccessorInputs(successor);
+                    : successor.getSuccessorInputs();
             assert(operandRange.size() == targetValues.size());
             for (auto &&[prev, post] : llvm::zip(operandRange, targetValues)) {
               if (prev == cur) {
@@ -982,10 +982,10 @@ getPotentialTerminatorUsers(Operation *op, Value parent) {
       auto parentOp = termIface->getParentOp();
       SmallVector<Value> results;
       for (auto &successor : successors) {
-        OperandRange operandRange = termIface.getSuccessorOperands(successor);
+        OperandRange operandRange = termIface.getSuccessorOperands(RegionBranchPoint(termIface->getParentRegion()));
         ValueRange targetValues =
             successor.isParent() ? parentOp->getResults()
-                                 : regionIface.getSuccessorInputs(successor);
+                                 : successor.getSuccessorInputs();
         assert(operandRange.size() == targetValues.size());
         for (auto &&[prev, post] : llvm::zip(operandRange, targetValues)) {
           if (prev == parent) {
@@ -1069,7 +1069,7 @@ static SmallVector<Value> getPotentialIncomingValues(OpResult res) {
         // TODO: the interface may also tell us which regions are allowed to
         // yield parent op results, and which only branch to other regions.
         auto successorOperands = llvm::to_vector(
-            iface.getSuccessorOperands(RegionSuccessor::parent()));
+            iface.getSuccessorOperands(RegionBranchPoint::parent()));
         // TODO: understand/document the assumption of how operands flow.
 
         if (successorOperands.size() != owner->getNumResults()) {
@@ -1135,7 +1135,7 @@ static SmallVector<Value> getPotentialIncomingValues(BlockArgument arg) {
 
         unsigned operandOffset = static_cast<unsigned>(-1);
         for (const auto &en :
-             llvm::enumerate(iface.getSuccessorInputs(successor))) {
+             llvm::enumerate(successor.getSuccessorInputs())) {
           if (en.value() != arg)
             continue;
           operandOffset = en.index();
@@ -1150,15 +1150,14 @@ static SmallVector<Value> getPotentialIncomingValues(BlockArgument arg) {
           // XXX: this assumes a contiguous slice of operands is mapped 1-1
           // without swaps to a contiguous slice of entry block arguments.
           assert(iface.getEntrySuccessorOperands(region).size() ==
-                 iface.getSuccessorInputs(successor).size());
+                 successor.getSuccessorInputs().size());
           potentialSources.insert(
               iface.getEntrySuccessorOperands(region)[operandOffset]);
         } else {
           // Find all block terminators in the predecessor region that
           // may be branching to this region, and get the operands they
           // forward.
-          for (Block &block : *predecessor.getTerminatorPredecessorOrNull()
-                                   ->getParentRegion()) {
+          for (Block &block : *predecessor.getRegionOrNull()) {
             // TODO: MLIR block without terminator
             if (auto terminator = dyn_cast<RegionBranchTerminatorOpInterface>(
                     block.getTerminator())) {
@@ -1166,7 +1165,7 @@ static SmallVector<Value> getPotentialIncomingValues(BlockArgument arg) {
               // 1-1 without swaps to a contiguous slice of entry block
               // arguments.
               assert(terminator.getSuccessorOperands(region).size() ==
-                     iface.getSuccessorInputs(successor).size());
+                     successor.getSuccessorInputs().size());
               potentialSources.insert(
                   terminator.getSuccessorOperands(region)[operandOffset]);
             } else {
@@ -1183,8 +1182,7 @@ static SmallVector<Value> getPotentialIncomingValues(BlockArgument arg) {
                        potentialSources);
     for (Region &childRegion : parent->getRegions())
       isRegionSucessorOf(iface, parentRegion,
-                         cast<RegionBranchTerminatorOpInterface>(
-                             childRegion.front().getTerminator()),
+                         RegionBranchPoint(&childRegion),
                          potentialSources);
 
   } else {
@@ -1283,8 +1281,7 @@ static void allFollowersOf(Operation *op,
 
     addEntryBlocksOfSuccessorRegions(
         parentOp,
-        cast<RegionBranchTerminatorOpInterface>(
-            current->getParent()->front().getTerminator()),
+        RegionBranchPoint(current->getParent()),
         todo);
   };
 

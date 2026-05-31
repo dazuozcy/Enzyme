@@ -97,7 +97,7 @@ Operation *clone(Operation *src, IRMapping &mapper,
     SmallVector<Type> resultTypes(src->getResultTypes().begin(),
                                   src->getResultTypes().end());
     newOp = Operation::create(src->getLoc(), src->getName(), resultTypes,
-                              operands, src->getAttrs(), mlir::PropertyRef(),
+                              operands, src->getAttrs(), mlir::OpaqueProperties(nullptr),
                               successors, src->getNumRegions());
 
     // Clone the regions.

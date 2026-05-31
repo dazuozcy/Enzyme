@@ -134,7 +134,7 @@ struct InlineEnzymeForwardDiff
       if (bodyOp.hasTrait<OpTrait::ReturnLike>()) {
         PatternRewriter::InsertionGuard insertionGuard(rewriter);
         rewriter.setInsertionPoint(&bodyOp);
-        enzyme::YieldOp::create(rewriter, bodyOp.getLoc(),
+        rewriter.create<enzyme::YieldOp>(bodyOp.getLoc(),
                                 bodyOp.getOperands());
         toErase.push_back(&bodyOp);
       }
@@ -197,7 +197,7 @@ static FailureOr<func::FuncOp> outlineAutoDiffFunc(
   // enzyme.autodiff_region op causes translation to LLVM IR to fail due
   // to some issue with the dbg info.
   Location loc = UnknownLoc::get(op.getContext());
-  auto outlinedFunc = func::FuncOp::create(builder, loc, funcName, fnType);
+  auto outlinedFunc = builder.create<func::FuncOp>(loc, funcName, fnType);
   Region &outlinedBody = outlinedFunc.getBody();
   deserializeFunctionAttributes(op, outlinedFunc, freeValues.size());
 
@@ -220,7 +220,7 @@ static FailureOr<func::FuncOp> outlineAutoDiffFunc(
     if (!terminator)
       continue;
     OpBuilder replacer(terminator);
-    func::ReturnOp::create(replacer, terminator->getLoc(),
+    replacer.create<func::ReturnOp>(terminator->getLoc(),
                            terminator->getOperands());
     terminator->erase();
   }
@@ -279,8 +279,8 @@ LogicalResult outlineEnzymeAutoDiffRegion(enzyme::AutoDiffRegionOp op,
       argActivities, [&op](enzyme::Activity actv) -> Attribute {
         return enzyme::ActivityAttr::get(op.getContext(), actv);
       }));
-  auto newOp = enzyme::AutoDiffOp::create(
-      builder, op.getLoc(), op.getResultTypes(), outlinedFunc->getName(),
+  auto newOp = builder.create<enzyme::AutoDiffOp>(
+      op.getLoc(), op.getResultTypes(), outlinedFunc->getName(),
       allInputs, argActivityAttr, op.getRetActivity(), op.getWidth(),
       op.getStrongZero());
   op.replaceAllUsesWith(newOp.getResults());
@@ -316,8 +316,8 @@ LogicalResult outlineEnzymeForwardDiffRegion(enzyme::ForwardDiffRegionOp op,
       argActivities, [&op](enzyme::Activity actv) -> Attribute {
         return enzyme::ActivityAttr::get(op.getContext(), actv);
       }));
-  auto newOp = enzyme::ForwardDiffOp::create(
-      builder, op.getLoc(), op.getResultTypes(), outlinedFunc->getName(),
+  auto newOp = builder.create<enzyme::ForwardDiffOp>(
+      op.getLoc(), op.getResultTypes(), outlinedFunc->getName(),
       primalsAndShadows, argActivityAttr, op.getRetActivity(), op.getWidth(),
       op.getStrongZero());
   op.replaceAllUsesWith(newOp.getResults());
@@ -402,7 +402,7 @@ bool mlir::enzyme::inlineAutodiffOp(enzyme::AutoDiffOp &op,
     if (bodyOp.hasTrait<OpTrait::ReturnLike>()) {
       PatternRewriter::InsertionGuard insertionGuard(rewriter);
       rewriter.setInsertionPoint(&bodyOp);
-      enzyme::YieldOp::create(rewriter, bodyOp.getLoc(), bodyOp.getOperands());
+      rewriter.create<enzyme::YieldOp>(bodyOp.getLoc(), bodyOp.getOperands());
       toErase.push_back(&bodyOp);
     }
   }

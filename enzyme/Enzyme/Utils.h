@@ -2227,7 +2227,7 @@ static inline llvm::Attribute::AttrKind PrimalParamAttrsToPreserve[] = {
   llvm::Attribute::AttrKind::NoFree,
   llvm::Attribute::AttrKind::Alignment,
   llvm::Attribute::AttrKind::StackAlignment,
-#if LLVM_VERSION_MAJOR >= 20
+#if LLVM_VERSION_MAJOR > 20
   llvm::Attribute::AttrKind::Captures,
 #else
   llvm::Attribute::AttrKind::NoCapture,
@@ -2247,7 +2247,7 @@ static inline llvm::Attribute::AttrKind ShadowParamAttrsToPreserve[] = {
   llvm::Attribute::AttrKind::NoFree,
   llvm::Attribute::AttrKind::Alignment,
   llvm::Attribute::AttrKind::StackAlignment,
-#if LLVM_VERSION_MAJOR >= 20
+#if LLVM_VERSION_MAJOR > 20
   llvm::Attribute::AttrKind::Captures,
 #else
   llvm::Attribute::AttrKind::NoCapture,

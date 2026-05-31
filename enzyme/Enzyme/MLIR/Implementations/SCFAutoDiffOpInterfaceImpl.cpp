@@ -66,9 +66,9 @@ public:
     } else {
       Value lb = forOp.getLowerBound(), ub = forOp.getUpperBound(),
             step = forOp.getStep();
-      Value diff = arith::SubIOp::create(builder, forOp->getLoc(), ub, lb);
+      Value diff = builder.create<arith::SubIOp>(forOp->getLoc(), ub, lb);
       Value nSteps =
-          arith::DivUIOp::create(builder, forOp->getLoc(), diff, step);
+          builder.create<arith::DivUIOp>(forOp->getLoc(), diff, step);
       return {IntOrValue(nSteps)};
     }
   }
@@ -78,12 +78,12 @@ public:
 
     Value val = forOp.getBody()->getArgument(0);
     if (!matchPattern(forOp.getLowerBound(), m_Zero())) {
-      val = arith::SubIOp::create(builder, forOp->getLoc(), val,
+      val = builder.create<arith::SubIOp>(forOp->getLoc(), val,
                                   forOp.getLowerBound());
     }
 
     if (!matchPattern(forOp.getStep(), m_One())) {
-      val = arith::DivUIOp::create(builder, forOp->getLoc(), val,
+      val = builder.create<arith::DivUIOp>(forOp->getLoc(), val,
                                    forOp.getStep());
     }
     return {val};
@@ -111,8 +111,8 @@ public:
   static scf::ForOp replaceWithNewOperands(PatternRewriter &rewriter,
                                            scf::ForOp otherForOp,
                                            ArrayRef<Value> operands) {
-    auto newOtherForOp = scf::ForOp::create(
-        rewriter, otherForOp->getLoc(), otherForOp.getLowerBound(),
+    auto newOtherForOp = rewriter.create<scf::ForOp>(
+        otherForOp->getLoc(), otherForOp.getLowerBound(),
         otherForOp.getUpperBound(), otherForOp.getStep(), operands);
 
     newOtherForOp.getRegion().takeBody(otherForOp.getRegion());
@@ -138,7 +138,7 @@ struct ForOpInterfaceReverse
 private:
   static Value makeIntConstant(Location loc, OpBuilder builder, int64_t val,
                                Type ty) {
-    return arith::ConstantOp::create(builder, loc, IntegerAttr::get(ty, val))
+    return builder.create<arith::ConstantOp>(loc, IntegerAttr::get(ty, val))
         .getResult();
   };
 
@@ -220,8 +220,8 @@ public:
       auto ivTy = forOp.getLowerBound().getType();
       Value outerUB = makeIntConstant(forOp.getLowerBound().getLoc(), builder,
                                       nOuter + hasTrailing, ivTy);
-      auto revOuter = scf::ForOp::create(
-          builder, op->getLoc(),
+      auto revOuter = builder.create<scf::ForOp>(
+          op->getLoc(),
           makeIntConstant(forOp.getLowerBound().getLoc(), builder, 0, ivTy),
           outerUB,
           makeIntConstant(forOp.getLowerBound().getLoc(), builder, 1, ivTy),
@@ -239,8 +239,8 @@ public:
       }
 
       Location loc = forOp.getInductionVar().getLoc();
-      Value currentOuterStep = arith::SubIOp::create(
-          builder, loc, makeIntConstant(loc, builder, nOuter, ivTy),
+      Value currentOuterStep = builder.create<arith::SubIOp>(
+          loc, makeIntConstant(loc, builder, nOuter, ivTy),
           revOuter.getInductionVar());
 
       SmallVector<Value> initArgs(numIterArgs, nullptr);
@@ -259,14 +259,14 @@ public:
       if (trailingIters > 0) {
         // this is the first reverse iteration
         Location loc = forOp.getUpperBound().getLoc();
-        nInnerUB = arith::SelectOp::create(
-            builder, loc,
-            arith::CmpIOp::create(builder, loc, arith::CmpIPredicate::eq,
+        nInnerUB = builder.create<arith::SelectOp>(
+            loc,
+            builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                   revOuter.getInductionVar(), zero),
             makeIntConstant(loc, builder, trailingIters, ivTy), nInnerCst);
       }
 
-      auto revInner = scf::ForOp::create(builder, forOp.getLoc(), zero,
+      auto revInner = builder.create<scf::ForOp>(forOp.getLoc(), zero,
                                          nInnerUB, one, initArgs);
       preserveAttributesButCheckpointing(revInner, forOp);
 
@@ -284,18 +284,18 @@ public:
 
       builder.setInsertionPointToEnd(revInner.getBody());
 
-      Value currentIV = arith::AddIOp::create(
-          builder, loc,
-          arith::MulIOp::create(
-              builder, loc,
-              arith::AddIOp::create(builder, loc,
-                                    arith::MulIOp::create(builder, loc,
+      Value currentIV = builder.create<arith::AddIOp>(
+          loc,
+          builder.create<arith::MulIOp>(
+              loc,
+              builder.create<arith::AddIOp>(loc,
+                                    builder.create<arith::MulIOp>(loc,
                                                           currentOuterStep,
                                                           nInnerCst),
                                     revInner.getInductionVar()),
-              arith::ConstantOp::create(builder, loc,
+              builder.create<arith::ConstantOp>(loc,
                                         IntegerAttr::get(ivTy, stepI))),
-          arith::ConstantOp::create(builder, loc,
+          builder.create<arith::ConstantOp>(loc,
                                     IntegerAttr::get(ivTy, startI)));
 
       for (auto [oldArg, newArg] :
@@ -319,7 +319,7 @@ public:
       }
 
       auto revLoop =
-          scf::ForOp::create(builder, forOp.getLoc(), zero, nInnerUB, one,
+          builder.create<scf::ForOp>(forOp.getLoc(), zero, nInnerUB, one,
                              revOuter.getBody()->getArguments().drop_front());
       preserveAttributesButCheckpointing(revLoop, forOp);
 
@@ -362,11 +362,11 @@ public:
       }
 
       builder.setInsertionPointToEnd(revLoopBody);
-      scf::YieldOp::create(builder, forOp.getBody()->getTerminator()->getLoc(),
+      builder.create<scf::YieldOp>(forOp.getBody()->getTerminator()->getLoc(),
                            newResults);
 
       builder.setInsertionPointToEnd(revOuter.getBody());
-      scf::YieldOp::create(builder, forOp.getBody()->getTerminator()->getLoc(),
+      builder.create<scf::YieldOp>(forOp.getBody()->getTerminator()->getLoc(),
                            revLoop.getResults());
 
       builder.setInsertionPointAfter(revOuter);
@@ -390,7 +390,7 @@ public:
     auto end = gutils->popCache(caches[1], builder);
     auto step = gutils->popCache(caches[2], builder);
 
-    auto repFor = scf::ForOp::create(builder, forOp.getLoc(), start, end, step,
+    auto repFor = builder.create<scf::ForOp>(forOp.getLoc(), start, end, step,
                                      incomingGradients);
     preserveAttributesButCheckpointing(repFor, forOp);
 
@@ -402,7 +402,7 @@ public:
 
         // Create implicit terminator if not present (when num results > 0)
         if (revBB.empty()) {
-          scf::YieldOp::create(bodyBuilder, repFor->getLoc());
+          bodyBuilder.create<scf::YieldOp>(repFor->getLoc());
         }
 
         bodyBuilder.setInsertionPointToStart(&revBB);
@@ -497,8 +497,8 @@ public:
       scf::ForOp newForOp = cast<scf::ForOp>(gutils->getNewFromOriginal(op));
 
       Type ty = forOp.getLowerBound().getType();
-      auto outerFwd = scf::ForOp::create(
-          cacheBuilder, op->getLoc(),
+      auto outerFwd = cacheBuilder.create<scf::ForOp>(
+          op->getLoc(),
           makeIntConstant(forOp.getLowerBound().getLoc(), cacheBuilder, 0, ty),
           makeIntConstant(forOp.getUpperBound().getLoc(), cacheBuilder,
                           nInner * (nOuter + hasTrailing), ty),
@@ -515,10 +515,10 @@ public:
         // if this is the last iteration, then the inner
         // loop will only make trailingIters iterations
         Location loc = forOp.getUpperBound().getLoc();
-        nInnerUB = arith::SelectOp::create(
-            cacheBuilder, loc,
-            arith::CmpIOp::create(
-                cacheBuilder, loc, arith::CmpIPredicate::eq,
+        nInnerUB = cacheBuilder.create<arith::SelectOp>(
+            loc,
+            cacheBuilder.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::eq,
                 outerFwd.getInductionVar(),
                 makeIntConstant(loc, cacheBuilder, nInner * nOuter, ty)),
             makeIntConstant(loc, cacheBuilder, trailingIters, ty), nInnerCst);
@@ -535,8 +535,8 @@ public:
             gutils->initAndPushCache(clone, cacheBuilder));
       }
 
-      auto innerFwd = scf::ForOp::create(
-          cacheBuilder, op->getLoc(),
+      auto innerFwd = cacheBuilder.create<scf::ForOp>(
+          op->getLoc(),
           makeIntConstant(forOp.getLowerBound().getLoc(), cacheBuilder, 0, ty),
           nInnerUB,
           makeIntConstant(forOp.getStep().getLoc(), cacheBuilder, 1, ty),
@@ -546,11 +546,11 @@ public:
       cacheBuilder.setInsertionPointToEnd(innerFwd.getBody());
 
       Location loc = forOp.getInductionVar().getLoc();
-      auto currentIV = arith::MulIOp::create(
-          cacheBuilder, loc,
-          arith::AddIOp::create(
-              cacheBuilder, loc,
-              arith::MulIOp::create(cacheBuilder, loc,
+      auto currentIV = cacheBuilder.create<arith::MulIOp>(
+          loc,
+          cacheBuilder.create<arith::AddIOp>(
+              loc,
+              cacheBuilder.create<arith::MulIOp>(loc,
                                     outerFwd.getInductionVar(), nInnerCst),
               innerFwd.getInductionVar()),
           newForOp.getStep());
@@ -568,8 +568,7 @@ public:
       for (auto initArg : innerFwd.getInitArgs())
         caches.push_back(gutils->initAndPushCache(initArg, cacheBuilder));
 
-      scf::YieldOp::create(cacheBuilder,
-                           forOp.getBody()->getTerminator()->getLoc(),
+      cacheBuilder.create<scf::YieldOp>(                           forOp.getBody()->getTerminator()->getLoc(),
                            innerFwd->getResults());
 
       cacheBuilder.setInsertionPointAfter(outerFwd);
@@ -650,9 +649,9 @@ struct ParallelOpEnzymeOpsRemover
       if (iters) {
         bounds.push_back(IntOrValue(*iters));
       } else {
-        Value diff = arith::SubIOp::create(builder, parOp.getLoc(), ub, lb);
+        Value diff = builder.create<arith::SubIOp>(parOp.getLoc(), ub, lb);
         Value nSteps =
-            arith::DivUIOp::create(builder, parOp.getLoc(), diff, step);
+            builder.create<arith::DivUIOp>(parOp.getLoc(), diff, step);
         bounds.push_back(IntOrValue(nSteps));
       }
     }
@@ -675,11 +674,11 @@ struct ParallelOpEnzymeOpsRemover
                          parOp.getStep())) {
       Value val = iv;
       if (!matchPattern(lb, m_Zero())) {
-        val = arith::SubIOp::create(builder, parOp.getLoc(), val, lb);
+        val = builder.create<arith::SubIOp>(parOp.getLoc(), val, lb);
       }
 
       if (!matchPattern(step, m_One())) {
-        val = arith::DivUIOp::create(builder, parOp.getLoc(), val, step);
+        val = builder.create<arith::DivUIOp>(parOp.getLoc(), val, step);
       }
       canonicalIVs.push_back(val);
     }
@@ -711,8 +710,8 @@ struct ParallelOpEnzymeOpsRemover
   static scf::ParallelOp replaceWithNewOperands(PatternRewriter &rewriter,
                                                 scf::ParallelOp otherParallelOp,
                                                 ArrayRef<Value> operands) {
-    auto newOtherParOp = scf::ParallelOp::create(
-        rewriter, otherParallelOp.getLoc(), otherParallelOp.getLowerBound(),
+    auto newOtherParOp = rewriter.create<scf::ParallelOp>(
+        otherParallelOp.getLoc(), otherParallelOp.getLowerBound(),
         otherParallelOp.getUpperBound(), otherParallelOp.getStep(), operands);
 
     newOtherParOp.getRegion().takeBody(otherParallelOp.getRegion());
@@ -724,7 +723,7 @@ struct ParallelOpEnzymeOpsRemover
       OpBuilder::InsertionGuard guard(rewriter);
       Operation *oldTerm = newOtherParOp.getBody()->getTerminator();
       rewriter.setInsertionPointToEnd(newOtherParOp.getBody());
-      auto term = scf::ReduceOp::create(rewriter, newOtherParOp.getLoc(),
+      auto term = rewriter.create<scf::ReduceOp>(newOtherParOp.getLoc(),
                                         oldTerm->getOperands());
 
       for (auto [reg, operand] :
@@ -735,7 +734,7 @@ struct ParallelOpEnzymeOpsRemover
         auto Ty = cast<AutoDiffTypeInterface>(operand.getType());
         Value reduced = Ty.createAddOp(rewriter, operand.getLoc(),
                                        b->getArgument(0), b->getArgument(1));
-        scf::ReduceReturnOp::create(rewriter, reduced.getLoc(), reduced);
+        rewriter.create<scf::ReduceReturnOp>(reduced.getLoc(), reduced);
       }
 
       oldTerm->erase();
@@ -776,8 +775,8 @@ struct ParallelOpInterfaceReverse
     SmallVector<Value> bounds = llvm::map_to_vector(
         caches, [&](Value cache) { return gutils->popCache(cache, builder); });
 
-    auto revPar = scf::ParallelOp::create(
-        builder, op->getLoc(),
+    auto revPar = builder.create<scf::ParallelOp>(
+        op->getLoc(),
         /*lowerBounds=*/ValueRange(bounds).slice(0, loopCount),
         /*upperBounds=*/ValueRange(bounds).slice(loopCount, loopCount),
         /*steps=*/ValueRange(bounds).slice(loopCount * 2, loopCount));
@@ -847,7 +846,7 @@ struct IfOpEnzymeOpsRemover
       OpBuilder::InsertionGuard guard(builder);
       Block &newBlock = ifOp.getElseRegion().emplaceBlock();
       builder.setInsertionPointToStart(&newBlock);
-      scf::YieldOp::create(builder, ifOp.getLoc());
+      builder.create<scf::YieldOp>(ifOp.getLoc());
     }
 
     return ifOp.elseBlock();
@@ -859,7 +858,7 @@ struct IfOpEnzymeOpsRemover
 
   static scf::IfOp replace(PatternRewriter &rewriter, scf::IfOp otherIfOp,
                            TypeRange resultTypes) {
-    auto newIf = scf::IfOp::create(rewriter, otherIfOp->getLoc(), resultTypes,
+    auto newIf = rewriter.create<scf::IfOp>(otherIfOp->getLoc(), resultTypes,
                                    otherIfOp.getCondition());
 
     newIf.getThenRegion().takeBody(otherIfOp.getThenRegion());
@@ -899,7 +898,7 @@ struct IfOpInterfaceReverse
     }
 
     auto revIf =
-        scf::IfOp::create(builder, ifOp.getLoc(), TypeRange{}, cond, hasElse);
+        builder.create<scf::IfOp>(ifOp.getLoc(), TypeRange{}, cond, hasElse);
     bool valid = true;
     for (auto &&[oldReg, newReg] :
          llvm::zip(op->getRegions(), revIf->getRegions())) {

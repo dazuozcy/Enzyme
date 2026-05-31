@@ -67,8 +67,8 @@ struct RaiseLLVMExtPass
             }
 
             OpBuilder builder(call);
-            llvm_ext::PtrSizeHintOp::create(
-                builder, call.getLoc(), call.getOperand(0), call.getOperand(1));
+            builder.create<llvm_ext::PtrSizeHintOp>(
+                call.getLoc(), call.getOperand(0), call.getOperand(1));
 
             call.erase();
           }

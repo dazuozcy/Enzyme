@@ -6,8 +6,8 @@ def : ControlFlowOp<"scf", "ForOp", [{
                                ValueRange remappedOperands,
                                TypeRange rettys) const {
     scf::ForOpAdaptor adaptor(remappedOperands);
-    auto repFor = scf::ForOp::create(
-        builder, op->getLoc(), adaptor.getLowerBound(), adaptor.getUpperBound(),
+    auto repFor = builder.create<scf::ForOp>(
+        op->getLoc(), adaptor.getLowerBound(), adaptor.getUpperBound(),
         adaptor.getStep(), adaptor.getInitArgs());
     return repFor;
   }
@@ -41,8 +41,8 @@ def : ControlFlowOp<"scf", "ParallelOp", [{
     rob = roe;
     roe = std::next(roe, rettys.size());  // Use rettys instead of par_op.getInitVals() to account for shadows
     ValueRange in = ValueRange(rob, roe);
-    auto repParallel = scf::ParallelOp::create(
-        builder, op->getLoc(), lb, ub, st, in);
+    auto repParallel = builder.create<scf::ParallelOp>(
+        op->getLoc(), lb, ub, st, in);
 
     return repParallel;
   }
@@ -54,7 +54,7 @@ def : ControlFlowOp<"scf", "ParallelOp", [{
     if (successor.isParent())
       return par_op.getInitVals();
     
-    return regionBranchOp.getEntrySuccessorOperands(successor);
+    return regionBranchOp.getEntrySuccessorOperands(RegionBranchPoint::parent());
   }
 }]>;
 
@@ -64,8 +64,8 @@ def : ControlFlowOp<"scf", "IfOp", [{
                                ValueRange remappedOperands,
                                TypeRange rettys) const {
     scf::IfOpAdaptor adaptor(remappedOperands);
-    auto repIf = scf::IfOp::create(
-        builder, op->getLoc(), rettys, adaptor.getCondition());
+    auto repIf = builder.create<scf::IfOp>(
+        op->getLoc(), rettys, adaptor.getCondition());
     return repIf;
   }
 }]>;
@@ -75,7 +75,7 @@ def : ControlFlowOp<"scf", "WhileOp", [{
                                MGradientUtils *gutils, Operation *original,
                                ValueRange remappedOperands,
                                TypeRange rettys) const {
-    return scf::WhileOp::create(builder, original->getLoc(), rettys,
+    return builder.create<scf::WhileOp>(original->getLoc(), rettys,
                                 remappedOperands, original->getAttrs());
   }
 }]>;
@@ -85,8 +85,8 @@ def : ControlFlowOp<"scf", "ExecuteRegionOp", [{
                                MGradientUtils *gutils, Operation *original,
                                ValueRange remappedOperands,
                                TypeRange rettys) const {
-    auto repIf = scf::ExecuteRegionOp::create(
-        builder, op->getLoc(), rettys);
+    auto repIf = builder.create<scf::ExecuteRegionOp>(
+        op->getLoc(), rettys);
     return repIf;
   }
 }]>;

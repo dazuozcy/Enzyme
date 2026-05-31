@@ -185,7 +185,7 @@ template <> struct EnzymeOpCreator<AutoDiffOp> {
                            TypeRange out_ty, ValueRange in_args,
                            ArrayAttr newInActivity, ArrayAttr newRetActivity) {
 
-    return AutoDiffOp::create(rewriter, uop.getLoc(), out_ty, uop.getFnAttr(),
+    return rewriter.create<AutoDiffOp>(uop.getLoc(), out_ty, uop.getFnAttr(),
                               in_args, newInActivity, newRetActivity,
                               uop.getWidthAttr(), uop.getStrongZeroAttr());
   }
@@ -196,8 +196,8 @@ template <> struct EnzymeOpCreator<AutoDiffRegionOp> {
                                  AutoDiffRegionOp uop, TypeRange out_ty,
                                  ValueRange in_args, ArrayAttr newInActivity,
                                  ArrayAttr newRetActivity) {
-    auto newOp = AutoDiffRegionOp::create(
-        rewriter, uop.getLoc(), out_ty, in_args, newInActivity, newRetActivity,
+    auto newOp = rewriter.create<AutoDiffRegionOp>(
+        uop.getLoc(), out_ty, in_args, newInActivity, newRetActivity,
         uop.getWidthAttr(), uop.getStrongZeroAttr(), uop.getFnAttr());
 
     rewriter.inlineRegionBefore(uop.getBody(), newOp.getBody(),
@@ -211,8 +211,8 @@ template <> struct EnzymeOpCreator<ForwardDiffOp> {
                               TypeRange out_ty, ValueRange in_args,
                               ArrayAttr newInActivity,
                               ArrayAttr newRetActivity) {
-    return ForwardDiffOp::create(
-        rewriter, uop.getLoc(), out_ty, uop.getFnAttr(), in_args, newInActivity,
+    return rewriter.create<ForwardDiffOp>(
+        uop.getLoc(), out_ty, uop.getFnAttr(), in_args, newInActivity,
         newRetActivity, uop.getWidthAttr(), uop.getStrongZeroAttr());
   }
 };
@@ -222,8 +222,8 @@ template <> struct EnzymeOpCreator<ForwardDiffRegionOp> {
                                     ForwardDiffRegionOp uop, TypeRange out_ty,
                                     ValueRange in_args, ArrayAttr newInActivity,
                                     ArrayAttr newRetActivity) {
-    auto newOp = ForwardDiffRegionOp::create(
-        rewriter, uop.getLoc(), out_ty, in_args, newInActivity, newRetActivity,
+    auto newOp = rewriter.create<ForwardDiffRegionOp>(
+        uop.getLoc(), out_ty, in_args, newInActivity, newRetActivity,
         uop.getWidthAttr(), uop.getStrongZeroAttr(), uop.getFnAttr());
     rewriter.inlineRegionBefore(uop.getBody(), newOp.getBody(),
                                 newOp.getBody().begin());

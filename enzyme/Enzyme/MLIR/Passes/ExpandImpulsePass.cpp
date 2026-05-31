@@ -315,7 +315,7 @@ struct ExpandImpulsePass
             cast<FunctionOpInterface>(symbolTable.lookupNearestSymbolFrom(
                 sampleOp, sampleOp.getFnAttr()));
         auto distCall =
-            func::CallOp::create(rewriter, sampleOp.getLoc(), distFn.getName(),
+            rewriter.create<func::CallOp>(sampleOp.getLoc(), distFn.getName(),
                                  distFn.getResultTypes(), sampleOp.getInputs());
         sampleOp.replaceAllUsesWith(distCall);
 
@@ -327,7 +327,7 @@ struct ExpandImpulsePass
 
       rewriter.setInsertionPoint(CI);
       auto newCI =
-          func::CallOp::create(rewriter, CI.getLoc(), NewF.getName(),
+          rewriter.create<func::CallOp>(CI.getLoc(), NewF.getName(),
                                NewF.getResultTypes(), CI.getOperands());
 
       rewriter.replaceOp(CI, newCI.getResults());
@@ -375,14 +375,14 @@ struct ExpandImpulsePass
       Location initLoc = putils->initializationBlock->begin()->getLoc();
       auto scalarType = RankedTensorType::get({}, entryBuilder.getF64Type());
       auto zeroWeight =
-          arith::ConstantOp::create(entryBuilder, initLoc, scalarType,
+          entryBuilder.create<arith::ConstantOp>(initLoc, scalarType,
                                     DenseElementsAttr::get(scalarType, 0.0));
       Value weightAccumulator = zeroWeight;
 
       auto traceType =
           RankedTensorType::get({1, positionSize}, entryBuilder.getF64Type());
       auto zeroTrace =
-          arith::ConstantOp::create(entryBuilder, initLoc, traceType,
+          entryBuilder.create<arith::ConstantOp>(initLoc, traceType,
                                     DenseElementsAttr::get(traceType, 0.0));
       Value currTrace = zeroTrace;
       int64_t currentOffset = 0;
@@ -401,8 +401,8 @@ struct ExpandImpulsePass
               cast<FunctionOpInterface>(symbolTable.lookupNearestSymbolFrom(
                   sampleOp, sampleOp.getFnAttr()));
 
-          auto distCall = func::CallOp::create(
-              rewriter, sampleOp.getLoc(), distFn.getName(),
+          auto distCall = rewriter.create<func::CallOp>(
+              sampleOp.getLoc(), distFn.getName(),
               distFn.getResultTypes(), sampleOp.getInputs());
 
           sampledValues.append(distCall.getResults().begin(),
@@ -428,11 +428,11 @@ struct ExpandImpulsePass
           }
 
           // A2. Compute and accumulate weight.
-          auto logpdf = func::CallOp::create(
-              rewriter, sampleOp.getLoc(), logpdfFn.getName(),
+          auto logpdf = rewriter.create<func::CallOp>(
+              sampleOp.getLoc(), logpdfFn.getName(),
               logpdfFn.getResultTypes(), logpdfOperands);
           weightAccumulator =
-              arith::AddFOp::create(rewriter, sampleOp.getLoc(),
+              rewriter.create<arith::AddFOp>(sampleOp.getLoc(),
                                     weightAccumulator, logpdf.getResult(0));
 
           // A3. Check if this sample is in the selection and insert into trace
@@ -458,18 +458,18 @@ struct ExpandImpulsePass
 
               auto flatSampleType = RankedTensorType::get(
                   {1, numElements}, sampleType.getElementType());
-              auto flatSample = impulse::ReshapeOp::create(
-                  rewriter, sampleOp.getLoc(), flatSampleType, sampleValue);
+              auto flatSample = rewriter.create<impulse::ReshapeOp>(
+                  sampleOp.getLoc(), flatSampleType, sampleValue);
               auto i64S = RankedTensorType::get({}, rewriter.getI64Type());
-              auto row0 = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), i64S,
+              auto row0 = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), i64S,
                   DenseElementsAttr::get(i64S, rewriter.getI64IntegerAttr(0)));
-              auto colOff = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), i64S,
+              auto colOff = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), i64S,
                   DenseElementsAttr::get(
                       i64S, rewriter.getI64IntegerAttr(currentOffset)));
-              currTrace = impulse::DynamicUpdateSliceOp::create(
-                              rewriter, sampleOp.getLoc(), traceType, currTrace,
+              currTrace = rewriter.create<impulse::DynamicUpdateSliceOp>(
+                              sampleOp.getLoc(), traceType, currTrace,
                               flatSample, ValueRange{row0, colOff})
                               .getResult();
               currentOffset += numElements;
@@ -493,8 +493,8 @@ struct ExpandImpulsePass
           if (subSelection.empty()) {
             // No samples from this generative function are in the selection
             // Just call the function directly
-            auto genCall = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), genFn.getName(),
+            auto genCall = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), genFn.getName(),
                 genFn.getResultTypes(), sampleOp.getInputs());
             sampledValues.append(genCall.getResults().begin(),
                                  genCall.getResults().end());
@@ -517,14 +517,14 @@ struct ExpandImpulsePass
             for (auto t : genFn.getResultTypes())
               simResultTypes.push_back(t);
 
-            auto nestedSimulate = impulse::SimulateOp::create(
-                rewriter, sampleOp.getLoc(), simResultTypes,
+            auto nestedSimulate = rewriter.create<impulse::SimulateOp>(
+                sampleOp.getLoc(), simResultTypes,
                 sampleOp.getFnAttr(), sampleOp.getInputs(), subSelection);
             auto subTrace = nestedSimulate.getTrace();
             auto subWeight = nestedSimulate.getWeight();
 
-            weightAccumulator = arith::AddFOp::create(
-                rewriter, sampleOp.getLoc(), weightAccumulator, subWeight);
+            weightAccumulator = rewriter.create<arith::AddFOp>(
+                sampleOp.getLoc(), weightAccumulator, subWeight);
 
             int64_t mergeOffset = computeOffsetForNestedSample(
                 sampleOp, fn, selection, sampleOp.getSymbolAttr(), symbolTable);
@@ -534,15 +534,15 @@ struct ExpandImpulsePass
             }
 
             auto i64S = RankedTensorType::get({}, rewriter.getI64Type());
-            auto row0 = arith::ConstantOp::create(
-                rewriter, sampleOp.getLoc(), i64S,
+            auto row0 = rewriter.create<arith::ConstantOp>(
+                sampleOp.getLoc(), i64S,
                 DenseElementsAttr::get(i64S, rewriter.getI64IntegerAttr(0)));
-            auto colOff = arith::ConstantOp::create(
-                rewriter, sampleOp.getLoc(), i64S,
+            auto colOff = rewriter.create<arith::ConstantOp>(
+                sampleOp.getLoc(), i64S,
                 DenseElementsAttr::get(
                     i64S, rewriter.getI64IntegerAttr(mergeOffset)));
-            currTrace = impulse::DynamicUpdateSliceOp::create(
-                            rewriter, sampleOp.getLoc(), traceType, currTrace,
+            currTrace = rewriter.create<impulse::DynamicUpdateSliceOp>(
+                            sampleOp.getLoc(), traceType, currTrace,
                             subTrace, ValueRange{row0, colOff})
                             .getResult();
             currentOffset =
@@ -578,12 +578,12 @@ struct ExpandImpulsePass
         newRetVals.append(retOp.getOperands().begin(),
                           retOp.getOperands().end());
 
-        func::ReturnOp::create(rewriter, retOp.getLoc(), newRetVals);
+        rewriter.create<func::ReturnOp>(retOp.getLoc(), newRetVals);
         rewriter.eraseOp(retOp);
       });
 
       rewriter.setInsertionPoint(CI);
-      auto newCI = func::CallOp::create(rewriter, CI.getLoc(), NewF.getName(),
+      auto newCI = rewriter.create<func::CallOp>(CI.getLoc(), NewF.getName(),
                                         NewF.getResultTypes(), CI.getInputs());
 
       rewriter.replaceOp(CI, newCI.getResults());
@@ -705,8 +705,8 @@ struct ExpandImpulsePass
       if (isHMC) {
         auto hmcConfig = mcmcOp.getHmcConfig().value();
         double length = hmcConfig.getTrajectoryLength().getValueAsDouble();
-        trajectoryLength = arith::ConstantOp::create(
-            rewriter, loc, F64TensorType,
+        trajectoryLength = rewriter.create<arith::ConstantOp>(
+            loc, F64TensorType,
             DenseElementsAttr::get(F64TensorType,
                                    rewriter.getF64FloatAttr(length)));
         adaptStepSize = hmcConfig.getAdaptStepSize();
@@ -720,8 +720,8 @@ struct ExpandImpulsePass
             nutsConfig.getMaxDeltaEnergy()
                 ? nutsConfig.getMaxDeltaEnergy().getValueAsDouble()
                 : 1000.0;
-        maxDeltaEnergy = arith::ConstantOp::create(
-            rewriter, loc, F64TensorType,
+        maxDeltaEnergy = rewriter.create<arith::ConstantOp>(
+            loc, F64TensorType,
             DenseElementsAttr::get(
                 F64TensorType, rewriter.getF64FloatAttr(maxDeltaEnergyVal)));
       }
@@ -824,27 +824,27 @@ struct ExpandImpulsePass
       };
 
       if (!adaptedInvMass) {
-        adaptedInvMass = arith::ConstantOp::create(
-            rewriter, loc, positionType,
+        adaptedInvMass = rewriter.create<arith::ConstantOp>(
+            loc, positionType,
             DenseElementsAttr::get(positionType,
                                    rewriter.getFloatAttr(elemType, 1.0)));
-        adaptedMassMatrixSqrt = arith::ConstantOp::create(
-            rewriter, loc, positionType,
+        adaptedMassMatrixSqrt = rewriter.create<arith::ConstantOp>(
+            loc, positionType,
             DenseElementsAttr::get(positionType,
                                    rewriter.getFloatAttr(elemType, 1.0)));
       }
 
       if (numWarmup > 0) {
-        auto c0 = arith::ConstantOp::create(
-            rewriter, loc, i64TensorType,
+        auto c0 = rewriter.create<arith::ConstantOp>(
+            loc, i64TensorType,
             DenseElementsAttr::get(i64TensorType,
                                    rewriter.getI64IntegerAttr(0)));
-        auto c1 = arith::ConstantOp::create(
-            rewriter, loc, i64TensorType,
+        auto c1 = rewriter.create<arith::ConstantOp>(
+            loc, i64TensorType,
             DenseElementsAttr::get(i64TensorType,
                                    rewriter.getI64IntegerAttr(1)));
-        auto numWarmupConst = arith::ConstantOp::create(
-            rewriter, loc, i64TensorType,
+        auto numWarmupConst = rewriter.create<arith::ConstantOp>(
+            loc, i64TensorType,
             DenseElementsAttr::get(i64TensorType,
                                    rewriter.getI64IntegerAttr(numWarmup)));
 
@@ -853,28 +853,28 @@ struct ExpandImpulsePass
 
         SmallVector<Value> windowEndConstants;
         for (const auto &window : schedule) {
-          windowEndConstants.push_back(arith::ConstantOp::create(
-              rewriter, loc, i64TensorType,
+          windowEndConstants.push_back(rewriter.create<arith::ConstantOp>(
+              loc, i64TensorType,
               DenseElementsAttr::get(i64TensorType,
                                      rewriter.getI64IntegerAttr(window.end))));
         }
 
-        auto numWindowsMinusOne = arith::ConstantOp::create(
-            rewriter, loc, i64TensorType,
+        auto numWindowsMinusOne = rewriter.create<arith::ConstantOp>(
+            loc, i64TensorType,
             DenseElementsAttr::get(i64TensorType,
                                    rewriter.getI64IntegerAttr(numWindows - 1)));
-        auto lastIterConst = arith::ConstantOp::create(
-            rewriter, loc, i64TensorType,
+        auto lastIterConst = rewriter.create<arith::ConstantOp>(
+            loc, i64TensorType,
             DenseElementsAttr::get(i64TensorType,
                                    rewriter.getI64IntegerAttr(numWarmup - 1)));
 
         if (!adaptedInvMass) {
-          adaptedInvMass = arith::ConstantOp::create(
-              rewriter, loc, positionType,
+          adaptedInvMass = rewriter.create<arith::ConstantOp>(
+              loc, positionType,
               DenseElementsAttr::get(positionType,
                                      rewriter.getFloatAttr(elemType, 1.0)));
-          adaptedMassMatrixSqrt = arith::ConstantOp::create(
-              rewriter, loc, positionType,
+          adaptedMassMatrixSqrt = rewriter.create<arith::ConstantOp>(
+              loc, positionType,
               DenseElementsAttr::get(positionType,
                                      rewriter.getFloatAttr(elemType, 1.0)));
         }
@@ -894,8 +894,8 @@ struct ExpandImpulsePass
           welfordConfig.regularize = true;
         }
 
-        Value windowIdx = arith::ConstantOp::create(
-            rewriter, loc, i64TensorType,
+        Value windowIdx = rewriter.create<arith::ConstantOp>(
+            loc, i64TensorType,
             DenseElementsAttr::get(i64TensorType,
                                    rewriter.getI64IntegerAttr(0)));
 
@@ -933,7 +933,7 @@ struct ExpandImpulsePass
         warmupInitArgs.push_back(windowIdx);
 
         auto warmupLoop =
-            impulse::ForOp::create(rewriter, loc, warmupLoopTypes, c0,
+            rewriter.create<impulse::ForOp>(loc, warmupLoopTypes, c0,
                                    numWarmupConst, c1, warmupInitArgs);
 
         Block *warmupBody = rewriter.createBlock(&warmupLoop.getRegion());
@@ -993,85 +993,85 @@ struct ExpandImpulsePass
         }
 
         // Use log_step_size_avg at last iteration
-        auto isLastIter = arith::CmpIOp::create(
-            rewriter, loc, arith::CmpIPredicate::eq, iterT, lastIterConst);
-        Value adaptedStepSizeInLoop = impulse::SelectOp::create(
-            rewriter, loc, scalarType, isLastIter, finalStepSizeFromDA,
+        auto isLastIter = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::eq, iterT, lastIterConst);
+        Value adaptedStepSizeInLoop = rewriter.create<impulse::SelectOp>(
+            loc, scalarType, isLastIter, finalStepSizeFromDA,
             currentStepSizeFromDA);
 
         const auto &floatSemantics =
             cast<FloatType>(elemType).getFloatSemantics();
-        auto tinyConst = arith::ConstantOp::create(
-            rewriter, loc, scalarType,
+        auto tinyConst = rewriter.create<arith::ConstantOp>(
+            loc, scalarType,
             DenseElementsAttr::get(
                 scalarType, FloatAttr::get(elemType, llvm::APFloat::getSmallest(
                                                          floatSemantics))));
-        auto maxConst = arith::ConstantOp::create(
-            rewriter, loc, scalarType,
+        auto maxConst = rewriter.create<arith::ConstantOp>(
+            loc, scalarType,
             DenseElementsAttr::get(
                 scalarType, FloatAttr::get(elemType, llvm::APFloat::getLargest(
                                                          floatSemantics))));
-        adaptedStepSizeInLoop = arith::MaximumFOp::create(
-            rewriter, loc, adaptedStepSizeInLoop, tinyConst);
-        adaptedStepSizeInLoop = arith::MinimumFOp::create(
-            rewriter, loc, adaptedStepSizeInLoop, maxConst);
+        adaptedStepSizeInLoop = rewriter.create<arith::MaximumFOp>(
+            loc, adaptedStepSizeInLoop, tinyConst);
+        adaptedStepSizeInLoop = rewriter.create<arith::MinimumFOp>(
+            loc, adaptedStepSizeInLoop, maxConst);
 
-        auto windowIdxGtZero = arith::CmpIOp::create(
-            rewriter, loc, arith::CmpIPredicate::sgt, windowIdxLoop, c0);
+        auto windowIdxGtZero = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sgt, windowIdxLoop, c0);
         auto windowIdxLtLast =
-            arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::slt,
+            rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
                                   windowIdxLoop, numWindowsMinusOne);
-        auto isMiddleWindow = arith::AndIOp::create(
-            rewriter, loc, windowIdxGtZero, windowIdxLtLast);
+        auto isMiddleWindow = rewriter.create<arith::AndIOp>(
+            loc, windowIdxGtZero, windowIdxLtLast);
 
         // Conditionally update Welford
         WelfordState conditionalWelford;
         if (adaptMassMatrix) {
           auto sampleType1D = RankedTensorType::get({positionSize}, elemType);
           Value sample1D =
-              impulse::ReshapeOp::create(rewriter, loc, sampleType1D, sample.q);
+              rewriter.create<impulse::ReshapeOp>(loc, sampleType1D, sample.q);
           WelfordState updatedWelfordAfterSample = updateWelford(
               rewriter, loc, welfordStateLoop, sample1D, welfordConfig);
 
-          conditionalWelford.mean = impulse::SelectOp::create(
-              rewriter, loc, welfordStateLoop.mean.getType(), isMiddleWindow,
+          conditionalWelford.mean = rewriter.create<impulse::SelectOp>(
+              loc, welfordStateLoop.mean.getType(), isMiddleWindow,
               updatedWelfordAfterSample.mean, welfordStateLoop.mean);
-          conditionalWelford.m2 = impulse::SelectOp::create(
-              rewriter, loc, welfordStateLoop.m2.getType(), isMiddleWindow,
+          conditionalWelford.m2 = rewriter.create<impulse::SelectOp>(
+              loc, welfordStateLoop.m2.getType(), isMiddleWindow,
               updatedWelfordAfterSample.m2, welfordStateLoop.m2);
-          conditionalWelford.n = impulse::SelectOp::create(
-              rewriter, loc, welfordStateLoop.n.getType(), isMiddleWindow,
+          conditionalWelford.n = rewriter.create<impulse::SelectOp>(
+              loc, welfordStateLoop.n.getType(), isMiddleWindow,
               updatedWelfordAfterSample.n, welfordStateLoop.n);
         }
 
-        Value atWindowEnd = arith::ConstantOp::create(
-            rewriter, loc, i1TensorType,
+        Value atWindowEnd = rewriter.create<arith::ConstantOp>(
+            loc, i1TensorType,
             DenseElementsAttr::get(i1TensorType, rewriter.getBoolAttr(false)));
 
         for (int64_t w = 0; w < numWindows; ++w) {
-          auto windowIdxIsW = arith::CmpIOp::create(
-              rewriter, loc, arith::CmpIPredicate::eq, windowIdxLoop,
-              arith::ConstantOp::create(
-                  rewriter, loc, i64TensorType,
+          auto windowIdxIsW = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::eq, windowIdxLoop,
+              rewriter.create<arith::ConstantOp>(
+                  loc, i64TensorType,
                   DenseElementsAttr::get(i64TensorType,
                                          rewriter.getI64IntegerAttr(w))));
           auto tEqualsWindowEnd =
-              arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::eq,
+              rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                     iterT, windowEndConstants[w]);
-          auto matchesThisWindow = arith::AndIOp::create(
-              rewriter, loc, windowIdxIsW, tEqualsWindowEnd);
-          atWindowEnd = arith::OrIOp::create(rewriter, loc, atWindowEnd,
+          auto matchesThisWindow = rewriter.create<arith::AndIOp>(
+              loc, windowIdxIsW, tEqualsWindowEnd);
+          atWindowEnd = rewriter.create<arith::OrIOp>(loc, atWindowEnd,
                                              matchesThisWindow);
         }
 
         Value newWindowIdx =
-            arith::AddIOp::create(rewriter, loc, windowIdxLoop, c1);
+            rewriter.create<arith::AddIOp>(loc, windowIdxLoop, c1);
         Value windowIdxAfterIncrement =
-            impulse::SelectOp::create(rewriter, loc, i64TensorType, atWindowEnd,
+            rewriter.create<impulse::SelectOp>(loc, i64TensorType, atWindowEnd,
                                       newWindowIdx, windowIdxLoop);
 
         auto atMiddleWindowEnd =
-            arith::AndIOp::create(rewriter, loc, atWindowEnd, isMiddleWindow);
+            rewriter.create<arith::AndIOp>(loc, atWindowEnd, isMiddleWindow);
 
         Value finalInvMass;
         Value finalMassMatrixSqrt;
@@ -1090,7 +1090,7 @@ struct ExpandImpulsePass
         for (Type t : updatedDaState.getTypes())
           ifResultTypes.push_back(t);
 
-        auto ifOp = impulse::IfOp::create(rewriter, loc, ifResultTypes,
+        auto ifOp = rewriter.create<impulse::IfOp>(loc, ifResultTypes,
                                           atMiddleWindowEnd);
 
         {
@@ -1127,7 +1127,7 @@ struct ExpandImpulsePass
               trueYieldValues.push_back(v);
           }
 
-          impulse::YieldOp::create(rewriter, loc, trueYieldValues);
+          rewriter.create<impulse::YieldOp>(loc, trueYieldValues);
         }
 
         {
@@ -1145,7 +1145,7 @@ struct ExpandImpulsePass
           for (auto v : updatedDaState.toValues())
             falseYieldValues.push_back(v);
 
-          impulse::YieldOp::create(rewriter, loc, falseYieldValues);
+          rewriter.create<impulse::YieldOp>(loc, falseYieldValues);
         }
 
         rewriter.setInsertionPointAfter(ifOp);
@@ -1177,7 +1177,7 @@ struct ExpandImpulsePass
         }
         warmupYieldValues.push_back(windowIdxAfterIncrement);
 
-        impulse::YieldOp::create(rewriter, loc, warmupYieldValues);
+        rewriter.create<impulse::YieldOp>(loc, warmupYieldValues);
 
         rewriter.setInsertionPointAfter(warmupLoop);
 
@@ -1207,31 +1207,31 @@ struct ExpandImpulsePass
       auto acceptedBufferType =
           RankedTensorType::get({collectionSize}, rewriter.getI1Type());
 
-      auto samplesBuffer = arith::ConstantOp::create(
-          rewriter, loc, samplesBufferType,
+      auto samplesBuffer = rewriter.create<arith::ConstantOp>(
+          loc, samplesBufferType,
           DenseElementsAttr::get(samplesBufferType,
                                  rewriter.getFloatAttr(elemType, 0.0)));
-      auto acceptedBuffer = arith::ConstantOp::create(
-          rewriter, loc, acceptedBufferType,
+      auto acceptedBuffer = rewriter.create<arith::ConstantOp>(
+          loc, acceptedBufferType,
           DenseElementsAttr::get(acceptedBufferType,
                                  rewriter.getBoolAttr(isNUTS)));
 
-      auto c0 = arith::ConstantOp::create(
-          rewriter, loc, i64TensorType,
+      auto c0 = rewriter.create<arith::ConstantOp>(
+          loc, i64TensorType,
           DenseElementsAttr::get(i64TensorType, rewriter.getI64IntegerAttr(0)));
-      auto c1 = arith::ConstantOp::create(
-          rewriter, loc, i64TensorType,
+      auto c1 = rewriter.create<arith::ConstantOp>(
+          loc, i64TensorType,
           DenseElementsAttr::get(i64TensorType, rewriter.getI64IntegerAttr(1)));
-      auto numSamplesConst = arith::ConstantOp::create(
-          rewriter, loc, i64TensorType,
+      auto numSamplesConst = rewriter.create<arith::ConstantOp>(
+          loc, i64TensorType,
           DenseElementsAttr::get(i64TensorType,
                                  rewriter.getI64IntegerAttr(numSamples)));
-      auto startIdxConst = arith::ConstantOp::create(
-          rewriter, loc, i64TensorType,
+      auto startIdxConst = rewriter.create<arith::ConstantOp>(
+          loc, i64TensorType,
           DenseElementsAttr::get(i64TensorType,
                                  rewriter.getI64IntegerAttr(startIdx)));
-      auto thinningConst = arith::ConstantOp::create(
-          rewriter, loc, i64TensorType,
+      auto thinningConst = rewriter.create<arith::ConstantOp>(
+          loc, i64TensorType,
           DenseElementsAttr::get(i64TensorType,
                                  rewriter.getI64IntegerAttr(thinning)));
 
@@ -1239,8 +1239,8 @@ struct ExpandImpulsePass
       SmallVector<Type> loopResultTypes = {
           positionType,         positionType,      scalarType,
           currentRng.getType(), samplesBufferType, acceptedBufferType};
-      auto forLoopOp = impulse::ForOp::create(
-          rewriter, loc, loopResultTypes, c0, numSamplesConst, c1,
+      auto forLoopOp = rewriter.create<impulse::ForOp>(
+          loc, loopResultTypes, c0, numSamplesConst, c1,
           ValueRange{currentQ, currentGrad, currentU, currentRng, samplesBuffer,
                      acceptedBuffer});
 
@@ -1269,42 +1269,42 @@ struct ExpandImpulsePass
 
       // Storage index: idx = (i - start_idx) / thinning
       auto iMinusStart =
-          arith::SubIOp::create(rewriter, loc, iterIdx, startIdxConst);
+          rewriter.create<arith::SubIOp>(loc, iterIdx, startIdxConst);
       auto storageIdx =
-          arith::DivSIOp::create(rewriter, loc, iMinusStart, thinningConst);
+          rewriter.create<arith::DivSIOp>(loc, iMinusStart, thinningConst);
 
       // Store condition:
       // (i >= start_idx) && ((i - start_idx) % thinning == 0)
-      auto geStartIdx = arith::CmpIOp::create(
-          rewriter, loc, arith::CmpIPredicate::sge, iterIdx, startIdxConst);
+      auto geStartIdx = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::sge, iterIdx, startIdxConst);
       auto modThinning =
-          arith::RemSIOp::create(rewriter, loc, iMinusStart, thinningConst);
-      auto modIsZero = arith::CmpIOp::create(
-          rewriter, loc, arith::CmpIPredicate::eq, modThinning, c0);
+          rewriter.create<arith::RemSIOp>(loc, iMinusStart, thinningConst);
+      auto modIsZero = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, modThinning, c0);
       auto shouldStore =
-          arith::AndIOp::create(rewriter, loc, geStartIdx, modIsZero);
+          rewriter.create<arith::AndIOp>(loc, geStartIdx, modIsZero);
 
-      auto zeroCol = arith::ConstantOp::create(
-          rewriter, loc, i64TensorType,
+      auto zeroCol = rewriter.create<arith::ConstantOp>(
+          loc, i64TensorType,
           DenseElementsAttr::get(i64TensorType, rewriter.getI64IntegerAttr(0)));
-      auto updatedSamplesBuffer = impulse::DynamicUpdateSliceOp::create(
-          rewriter, loc, samplesBufferType, samplesBufferLoop, q_constrained,
+      auto updatedSamplesBuffer = rewriter.create<impulse::DynamicUpdateSliceOp>(
+          loc, samplesBufferType, samplesBufferLoop, q_constrained,
           ValueRange{storageIdx, zeroCol});
-      auto selectedSamplesBuffer = impulse::SelectOp::create(
-          rewriter, loc, samplesBufferType, shouldStore, updatedSamplesBuffer,
+      auto selectedSamplesBuffer = rewriter.create<impulse::SelectOp>(
+          loc, samplesBufferType, shouldStore, updatedSamplesBuffer,
           samplesBufferLoop);
 
-      auto accepted1D = impulse::ReshapeOp::create(
-          rewriter, loc, RankedTensorType::get({1}, rewriter.getI1Type()),
+      auto accepted1D = rewriter.create<impulse::ReshapeOp>(
+          loc, RankedTensorType::get({1}, rewriter.getI1Type()),
           sample.accepted);
-      auto updatedAcceptedBuffer = impulse::DynamicUpdateSliceOp::create(
-          rewriter, loc, acceptedBufferType, acceptedBufferLoop, accepted1D,
+      auto updatedAcceptedBuffer = rewriter.create<impulse::DynamicUpdateSliceOp>(
+          loc, acceptedBufferType, acceptedBufferLoop, accepted1D,
           ValueRange{storageIdx});
-      auto selectedAcceptedBuffer = impulse::SelectOp::create(
-          rewriter, loc, acceptedBufferType, shouldStore, updatedAcceptedBuffer,
+      auto selectedAcceptedBuffer = rewriter.create<impulse::SelectOp>(
+          loc, acceptedBufferType, shouldStore, updatedAcceptedBuffer,
           acceptedBufferLoop);
 
-      impulse::YieldOp::create(rewriter, loc,
+      rewriter.create<impulse::YieldOp>(loc,
                                ValueRange{sample.q, sample.grad, sample.U,
                                           sample.rng, selectedSamplesBuffer,
                                           selectedAcceptedBuffer});
@@ -1390,30 +1390,30 @@ struct ExpandImpulsePass
 
       // 2. Compute log_alpha = new_weight - old_weight
       auto logAlpha =
-          arith::SubFOp::create(rewriter, loc, newWeight, oldWeight);
+          rewriter.create<arith::SubFOp>(loc, newWeight, oldWeight);
 
       // 3. Sample uniform random in (0, 1) and compute log
-      auto zeroConst = arith::ConstantOp::create(
-          rewriter, loc, weightType, DenseElementsAttr::get(weightType, 0.0));
-      auto oneConst = arith::ConstantOp::create(
-          rewriter, loc, weightType, DenseElementsAttr::get(weightType, 1.0));
+      auto zeroConst = rewriter.create<arith::ConstantOp>(
+          loc, weightType, DenseElementsAttr::get(weightType, 0.0));
+      auto oneConst = rewriter.create<arith::ConstantOp>(
+          loc, weightType, DenseElementsAttr::get(weightType, 1.0));
 
-      auto randomOp = impulse::RandomOp::create(
-          rewriter, loc, TypeRange{rngStateType, weightType}, newRng, zeroConst,
+      auto randomOp = rewriter.create<impulse::RandomOp>(
+          loc, TypeRange{rngStateType, weightType}, newRng, zeroConst,
           oneConst,
           impulse::RngDistributionAttr::get(rewriter.getContext(),
                                             impulse::RngDistribution::UNIFORM));
-      auto logRand = math::LogOp::create(rewriter, loc, randomOp.getResult());
+      auto logRand = rewriter.create<math::LogOp>(loc, randomOp.getResult());
       Value finalRng = randomOp.getOutputRngState();
 
       // 4. Check if proposal is accepted: log(rand()) < log_alpha
-      auto accepted = arith::CmpFOp::create(
-          rewriter, loc, arith::CmpFPredicate::OLT, logRand, logAlpha);
+      auto accepted = rewriter.create<arith::CmpFOp>(
+          loc, arith::CmpFPredicate::OLT, logRand, logAlpha);
 
       // 5. Select trace and weight based on acceptance
-      auto selectedTrace = impulse::SelectOp::create(
-          rewriter, loc, traceType, accepted, newTrace, oldTrace);
-      auto selectedWeight = arith::SelectOp::create(rewriter, loc, accepted,
+      auto selectedTrace = rewriter.create<impulse::SelectOp>(
+          loc, traceType, accepted, newTrace, oldTrace);
+      auto selectedWeight = rewriter.create<arith::SelectOp>(loc, accepted,
                                                     newWeight, oldWeight);
 
       rewriter.replaceOp(mhOp,
@@ -1467,14 +1467,14 @@ struct ExpandImpulsePass
 
       auto scalarType = RankedTensorType::get({}, entryBuilder.getF64Type());
       auto zeroWeight =
-          arith::ConstantOp::create(entryBuilder, initLoc, scalarType,
+          entryBuilder.create<arith::ConstantOp>(initLoc, scalarType,
                                     DenseElementsAttr::get(scalarType, 0.0));
       Value weightAccumulator = zeroWeight;
 
       auto traceType =
           RankedTensorType::get({1, positionSize}, entryBuilder.getF64Type());
       auto zeroTrace =
-          arith::ConstantOp::create(entryBuilder, initLoc, traceType,
+          entryBuilder.create<arith::ConstantOp>(initLoc, traceType,
                                     DenseElementsAttr::get(traceType, 0.0));
       Value currTrace = zeroTrace;
       Value constraint = NewF.getArgument(0);
@@ -1526,14 +1526,14 @@ struct ExpandImpulsePass
 
               auto sliceType = RankedTensorType::get(
                   {1, numElements}, resultType.getElementType());
-              auto sliced = impulse::SliceOp::create(
-                  rewriter, sampleOp.getLoc(), sliceType, constraint,
+              auto sliced = rewriter.create<impulse::SliceOp>(
+                  sampleOp.getLoc(), sliceType, constraint,
                   rewriter.getDenseI64ArrayAttr({0, constrainedOffset}),
                   rewriter.getDenseI64ArrayAttr(
                       {1, constrainedOffset + numElements}),
                   rewriter.getDenseI64ArrayAttr({1, 1}));
-              auto extracted = impulse::ReshapeOp::create(
-                  rewriter, sampleOp.getLoc(), resultType, sliced);
+              auto extracted = rewriter.create<impulse::ReshapeOp>(
+                  sampleOp.getLoc(), resultType, sliced);
               sampledValues[i] = extracted.getResult();
               constrainedOffset += numElements;
             }
@@ -1559,11 +1559,11 @@ struct ExpandImpulsePass
               return WalkResult::interrupt();
             }
 
-            auto logpdf = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), logpdfFn.getName(),
+            auto logpdf = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), logpdfFn.getName(),
                 logpdfFn.getResultTypes(), logpdfOperands);
             weightAccumulator =
-                arith::AddFOp::create(rewriter, sampleOp.getLoc(),
+                rewriter.create<arith::AddFOp>(sampleOp.getLoc(),
                                       weightAccumulator, logpdf.getResult(0));
           } else {
             // Unconstrained: call the distribution function
@@ -1571,8 +1571,8 @@ struct ExpandImpulsePass
                 cast<FunctionOpInterface>(symbolTable.lookupNearestSymbolFrom(
                     sampleOp, sampleOp.getFnAttr()));
 
-            auto distCall = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), distFn.getName(),
+            auto distCall = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), distFn.getName(),
                 distFn.getResultTypes(), sampleOp.getInputs());
 
             sampledValues.append(distCall.getResults().begin(),
@@ -1597,11 +1597,11 @@ struct ExpandImpulsePass
               return WalkResult::interrupt();
             }
 
-            auto logpdf = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), logpdfFn.getName(),
+            auto logpdf = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), logpdfFn.getName(),
                 logpdfFn.getResultTypes(), logpdfOperands);
             weightAccumulator =
-                arith::AddFOp::create(rewriter, sampleOp.getLoc(),
+                rewriter.create<arith::AddFOp>(sampleOp.getLoc(),
                                       weightAccumulator, logpdf.getResult(0));
           }
 
@@ -1627,18 +1627,18 @@ struct ExpandImpulsePass
 
               auto flatSampleType = RankedTensorType::get(
                   {1, numElements}, sampleType.getElementType());
-              auto flatSample = impulse::ReshapeOp::create(
-                  rewriter, sampleOp.getLoc(), flatSampleType, sampleValue);
+              auto flatSample = rewriter.create<impulse::ReshapeOp>(
+                  sampleOp.getLoc(), flatSampleType, sampleValue);
               auto i64S = RankedTensorType::get({}, rewriter.getI64Type());
-              auto row0 = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), i64S,
+              auto row0 = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), i64S,
                   DenseElementsAttr::get(i64S, rewriter.getI64IntegerAttr(0)));
-              auto colOff = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), i64S,
+              auto colOff = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), i64S,
                   DenseElementsAttr::get(
                       i64S, rewriter.getI64IntegerAttr(currentTraceOffset)));
-              currTrace = impulse::DynamicUpdateSliceOp::create(
-                              rewriter, sampleOp.getLoc(), traceType, currTrace,
+              currTrace = rewriter.create<impulse::DynamicUpdateSliceOp>(
+                              sampleOp.getLoc(), traceType, currTrace,
                               flatSample, ValueRange{row0, colOff})
                               .getResult();
               currentTraceOffset += numElements;
@@ -1666,8 +1666,8 @@ struct ExpandImpulsePass
           if (subSelection.empty()) {
             // No samples from this generative function are in the selection
             // Just call the function directly
-            auto genCall = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), genFn.getName(),
+            auto genCall = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), genFn.getName(),
                 genFn.getResultTypes(), sampleOp.getInputs());
             sampledValues.append(genCall.getResults().begin(),
                                  genCall.getResults().end());
@@ -1691,15 +1691,15 @@ struct ExpandImpulsePass
                   sampleOp, fn, CI.getConstrainedAddressesAttr(),
                   sampleOp.getSymbolAttr(), symbolTable);
 
-              subConstraint = impulse::SliceOp::create(
-                  rewriter, sampleOp.getLoc(), subConstraintType, constraint,
+              subConstraint = rewriter.create<impulse::SliceOp>(
+                  sampleOp.getLoc(), subConstraintType, constraint,
                   rewriter.getDenseI64ArrayAttr({0, subConstraintOffset}),
                   rewriter.getDenseI64ArrayAttr(
                       {1, subConstraintOffset + subConstraintSize}),
                   rewriter.getDenseI64ArrayAttr({1, 1}));
             } else {
-              subConstraint = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), subConstraintType,
+              subConstraint = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), subConstraintType,
                   DenseElementsAttr::get(subConstraintType, {0.0}));
             }
 
@@ -1713,30 +1713,30 @@ struct ExpandImpulsePass
             for (auto t : genFn.getResultTypes())
               genResultTypes.push_back(t);
 
-            auto nestedGenerate = impulse::GenerateOp::create(
-                rewriter, sampleOp.getLoc(), genResultTypes,
+            auto nestedGenerate = rewriter.create<impulse::GenerateOp>(
+                sampleOp.getLoc(), genResultTypes,
                 sampleOp.getFnAttr(), sampleOp.getInputs(), subConstraint,
                 subSelection, subConstrainedAddrs);
 
             Value subTrace = nestedGenerate.getTrace();
             Value subWeight = nestedGenerate.getWeight();
 
-            weightAccumulator = arith::AddFOp::create(
-                rewriter, sampleOp.getLoc(), weightAccumulator, subWeight);
+            weightAccumulator = rewriter.create<arith::AddFOp>(
+                sampleOp.getLoc(), weightAccumulator, subWeight);
 
             int64_t mergeOffset = computeOffsetForNestedSample(
                 sampleOp, fn, selection, sampleOp.getSymbolAttr(), symbolTable);
 
             auto i64S = RankedTensorType::get({}, rewriter.getI64Type());
-            auto row0 = arith::ConstantOp::create(
-                rewriter, sampleOp.getLoc(), i64S,
+            auto row0 = rewriter.create<arith::ConstantOp>(
+                sampleOp.getLoc(), i64S,
                 DenseElementsAttr::get(i64S, rewriter.getI64IntegerAttr(0)));
-            auto colOff = arith::ConstantOp::create(
-                rewriter, sampleOp.getLoc(), i64S,
+            auto colOff = rewriter.create<arith::ConstantOp>(
+                sampleOp.getLoc(), i64S,
                 DenseElementsAttr::get(
                     i64S, rewriter.getI64IntegerAttr(mergeOffset)));
-            currTrace = impulse::DynamicUpdateSliceOp::create(
-                            rewriter, sampleOp.getLoc(), traceType, currTrace,
+            currTrace = rewriter.create<impulse::DynamicUpdateSliceOp>(
+                            sampleOp.getLoc(), traceType, currTrace,
                             subTrace, ValueRange{row0, colOff})
                             .getResult();
             currentTraceOffset =
@@ -1771,7 +1771,7 @@ struct ExpandImpulsePass
         newRetVals.append(retOp.getOperands().begin(),
                           retOp.getOperands().end());
 
-        func::ReturnOp::create(rewriter, retOp.getLoc(), newRetVals);
+        rewriter.create<func::ReturnOp>(retOp.getLoc(), newRetVals);
         rewriter.eraseOp(retOp);
       });
 
@@ -1779,7 +1779,7 @@ struct ExpandImpulsePass
       SmallVector<Value> operands;
       operands.push_back(CI.getConstraint());
       operands.append(CI.getInputs().begin(), CI.getInputs().end());
-      auto newCI = func::CallOp::create(rewriter, CI.getLoc(), NewF.getName(),
+      auto newCI = rewriter.create<func::CallOp>(CI.getLoc(), NewF.getName(),
                                         NewF.getResultTypes(), operands);
 
       rewriter.replaceOp(CI, newCI.getResults());
@@ -1828,14 +1828,14 @@ struct ExpandImpulsePass
 
       auto scalarType = RankedTensorType::get({}, entryBuilder.getF64Type());
       auto zeroWeight =
-          arith::ConstantOp::create(entryBuilder, initLoc, scalarType,
+          entryBuilder.create<arith::ConstantOp>(initLoc, scalarType,
                                     DenseElementsAttr::get(scalarType, 0.0));
       Value weightAccumulator = zeroWeight;
 
       auto traceType =
           RankedTensorType::get({1, positionSize}, entryBuilder.getF64Type());
       auto zeroTrace =
-          arith::ConstantOp::create(entryBuilder, initLoc, traceType,
+          entryBuilder.create<arith::ConstantOp>(initLoc, traceType,
                                     DenseElementsAttr::get(traceType, 0.0));
       Value currTrace = zeroTrace;
 
@@ -1876,8 +1876,8 @@ struct ExpandImpulsePass
                 cast<FunctionOpInterface>(symbolTable.lookupNearestSymbolFrom(
                     sampleOp, sampleOp.getFnAttr()));
 
-            auto distCall = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), distFn.getName(),
+            auto distCall = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), distFn.getName(),
                 distFn.getResultTypes(), sampleOp.getInputs());
 
             sampledValues.append(distCall.getResults().begin(),
@@ -1900,14 +1900,14 @@ struct ExpandImpulsePass
 
               auto sliceType = RankedTensorType::get(
                   {1, numElements}, resultType.getElementType());
-              auto sliced = impulse::SliceOp::create(
-                  rewriter, sampleOp.getLoc(), sliceType, prevTrace,
+              auto sliced = rewriter.create<impulse::SliceOp>(
+                  sampleOp.getLoc(), sliceType, prevTrace,
                   rewriter.getDenseI64ArrayAttr({0, extractOffset}),
                   rewriter.getDenseI64ArrayAttr(
                       {1, extractOffset + numElements}),
                   rewriter.getDenseI64ArrayAttr({1, 1}));
-              auto extracted = impulse::ReshapeOp::create(
-                  rewriter, sampleOp.getLoc(), resultType, sliced);
+              auto extracted = rewriter.create<impulse::ReshapeOp>(
+                  sampleOp.getLoc(), resultType, sliced);
               sampledValues[i] = extracted.getResult();
               extractOffset += numElements;
             }
@@ -1931,11 +1931,11 @@ struct ExpandImpulsePass
             return WalkResult::interrupt();
           }
 
-          auto logpdf = func::CallOp::create(
-              rewriter, sampleOp.getLoc(), logpdfFn.getName(),
+          auto logpdf = rewriter.create<func::CallOp>(
+              sampleOp.getLoc(), logpdfFn.getName(),
               logpdfFn.getResultTypes(), logpdfOperands);
           weightAccumulator =
-              arith::AddFOp::create(rewriter, sampleOp.getLoc(),
+              rewriter.create<arith::AddFOp>(sampleOp.getLoc(),
                                     weightAccumulator, logpdf.getResult(0));
 
           bool inSelection = false;
@@ -1960,18 +1960,18 @@ struct ExpandImpulsePass
 
               auto flatSampleType = RankedTensorType::get(
                   {1, numElements}, sampleType.getElementType());
-              auto flatSample = impulse::ReshapeOp::create(
-                  rewriter, sampleOp.getLoc(), flatSampleType, sampleValue);
+              auto flatSample = rewriter.create<impulse::ReshapeOp>(
+                  sampleOp.getLoc(), flatSampleType, sampleValue);
               auto i64S = RankedTensorType::get({}, rewriter.getI64Type());
-              auto row0 = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), i64S,
+              auto row0 = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), i64S,
                   DenseElementsAttr::get(i64S, rewriter.getI64IntegerAttr(0)));
-              auto colOff = arith::ConstantOp::create(
-                  rewriter, sampleOp.getLoc(), i64S,
+              auto colOff = rewriter.create<arith::ConstantOp>(
+                  sampleOp.getLoc(), i64S,
                   DenseElementsAttr::get(
                       i64S, rewriter.getI64IntegerAttr(currentTraceOffset)));
-              currTrace = impulse::DynamicUpdateSliceOp::create(
-                              rewriter, sampleOp.getLoc(), traceType, currTrace,
+              currTrace = rewriter.create<impulse::DynamicUpdateSliceOp>(
+                              sampleOp.getLoc(), traceType, currTrace,
                               flatSample, ValueRange{row0, colOff})
                               .getResult();
               currentTraceOffset += numElements;
@@ -1997,8 +1997,8 @@ struct ExpandImpulsePass
                                 sampleOp.getSymbolAttr());
 
           if (subSelection.empty()) {
-            auto genCall = func::CallOp::create(
-                rewriter, sampleOp.getLoc(), genFn.getName(),
+            auto genCall = rewriter.create<func::CallOp>(
+                sampleOp.getLoc(), genFn.getName(),
                 genFn.getResultTypes(), sampleOp.getInputs());
             sampledValues.append(genCall.getResults().begin(),
                                  genCall.getResults().end());
@@ -2020,8 +2020,8 @@ struct ExpandImpulsePass
 
             auto subTraceType = RankedTensorType::get({1, subPositionSize},
                                                       rewriter.getF64Type());
-            Value subPrevTrace = impulse::SliceOp::create(
-                rewriter, sampleOp.getLoc(), subTraceType, prevTrace,
+            Value subPrevTrace = rewriter.create<impulse::SliceOp>(
+                sampleOp.getLoc(), subTraceType, prevTrace,
                 rewriter.getDenseI64ArrayAttr({0, mergeOffset}),
                 rewriter.getDenseI64ArrayAttr(
                     {1, mergeOffset + subPositionSize}),
@@ -2035,27 +2035,27 @@ struct ExpandImpulsePass
             for (auto t : genFn.getResultTypes())
               regenResultTypes.push_back(t);
 
-            auto nestedRegenerate = impulse::RegenerateOp::create(
-                rewriter, sampleOp.getLoc(), regenResultTypes,
+            auto nestedRegenerate = rewriter.create<impulse::RegenerateOp>(
+                sampleOp.getLoc(), regenResultTypes,
                 sampleOp.getFnAttr(), sampleOp.getInputs(), subPrevTrace,
                 subSelection, subRegenerateAddrs);
 
             Value subTrace = nestedRegenerate.getNewTrace();
             Value subWeight = nestedRegenerate.getWeight();
 
-            weightAccumulator = arith::AddFOp::create(
-                rewriter, sampleOp.getLoc(), weightAccumulator, subWeight);
+            weightAccumulator = rewriter.create<arith::AddFOp>(
+                sampleOp.getLoc(), weightAccumulator, subWeight);
 
             auto i64S = RankedTensorType::get({}, rewriter.getI64Type());
-            auto row0 = arith::ConstantOp::create(
-                rewriter, sampleOp.getLoc(), i64S,
+            auto row0 = rewriter.create<arith::ConstantOp>(
+                sampleOp.getLoc(), i64S,
                 DenseElementsAttr::get(i64S, rewriter.getI64IntegerAttr(0)));
-            auto colOff = arith::ConstantOp::create(
-                rewriter, sampleOp.getLoc(), i64S,
+            auto colOff = rewriter.create<arith::ConstantOp>(
+                sampleOp.getLoc(), i64S,
                 DenseElementsAttr::get(
                     i64S, rewriter.getI64IntegerAttr(mergeOffset)));
-            currTrace = impulse::DynamicUpdateSliceOp::create(
-                            rewriter, sampleOp.getLoc(), traceType, currTrace,
+            currTrace = rewriter.create<impulse::DynamicUpdateSliceOp>(
+                            sampleOp.getLoc(), traceType, currTrace,
                             subTrace, ValueRange{row0, colOff})
                             .getResult();
             currentTraceOffset =
@@ -2089,7 +2089,7 @@ struct ExpandImpulsePass
         newRetVals.append(retOp.getOperands().begin(),
                           retOp.getOperands().end());
 
-        func::ReturnOp::create(rewriter, retOp.getLoc(), newRetVals);
+        rewriter.create<func::ReturnOp>(retOp.getLoc(), newRetVals);
         rewriter.eraseOp(retOp);
       });
 
@@ -2097,7 +2097,7 @@ struct ExpandImpulsePass
       SmallVector<Value> operands;
       operands.push_back(CI.getOriginalTrace());
       operands.append(CI.getInputs().begin(), CI.getInputs().end());
-      auto newCI = func::CallOp::create(rewriter, CI.getLoc(), NewF.getName(),
+      auto newCI = rewriter.create<func::CallOp>(CI.getLoc(), NewF.getName(),
                                         NewF.getResultTypes(), operands);
 
       rewriter.replaceOp(CI, newCI.getResults());

@@ -49,7 +49,7 @@ public:
 
   mlir::Value createNullValue(mlir::Type self, OpBuilder &builder,
                               Location loc) const {
-    return LLVM::ZeroOp::create(builder, loc, self);
+    return builder.create<LLVM::ZeroOp>(loc, self);
   }
 
   Value createAddOp(Type self, OpBuilder &builder, Location loc, Value a,
@@ -122,15 +122,15 @@ struct LoadOpInterfaceReverse
         Value addrGradient = gutils->popCache(caches.front(), builder);
 
         if (!gutils->AtomicAdd) {
-          Value loadedGradient = LLVM::LoadOp::create(builder, loadOp.getLoc(),
+          Value loadedGradient = builder.create<LLVM::LoadOp>(loadOp.getLoc(),
                                                       iface, addrGradient);
           Value addedGradient = iface.createAddOp(builder, loadOp.getLoc(),
                                                   loadedGradient, gradient);
 
-          LLVM::StoreOp::create(builder, loadOp.getLoc(), addedGradient,
+          builder.create<LLVM::StoreOp>(loadOp.getLoc(), addedGradient,
                                 addrGradient);
         } else {
-          LLVM::AtomicRMWOp::create(builder, loadOp.getLoc(),
+          builder.create<LLVM::AtomicRMWOp>(loadOp.getLoc(),
                                     LLVM::AtomicBinOp::fadd, addrGradient,
                                     gradient, LLVM::AtomicOrdering::monotonic);
         }
@@ -176,8 +176,8 @@ struct StoreOpInterfaceReverse
 
       if (!iface.isMutable()) {
         if (!gutils->isConstantValue(val)) {
-          Value loadedGradient = LLVM::LoadOp::create(
-              builder, storeOp.getLoc(), val.getType(), addrGradient);
+          Value loadedGradient = builder.create<LLVM::LoadOp>(
+              storeOp.getLoc(), val.getType(), addrGradient);
           gutils->addToDiffe(val, loadedGradient, builder);
         }
 
@@ -185,7 +185,7 @@ struct StoreOpInterfaceReverse
             cast<AutoDiffTypeInterface>(gutils->getShadowType(val.getType()))
                 .createNullValue(builder, op->getLoc());
 
-        LLVM::StoreOp::create(builder, storeOp.getLoc(), zero, addrGradient);
+        builder.create<LLVM::StoreOp>(storeOp.getLoc(), zero, addrGradient);
       }
     }
 
@@ -227,7 +227,7 @@ struct ExtractValueOpInterfaceReverse
       // gradient at the extracted position.
       if (!gutils->isConstantValue(container)) {
         Value zero = containerIface.createNullValue(builder, op->getLoc());
-        Value grad = LLVM::InsertValueOp::create(builder, op->getLoc(), zero,
+        Value grad = builder.create<LLVM::InsertValueOp>(op->getLoc(), zero,
                                                  gradient, evOp.getPosition());
         gutils->addToDiffe(container, grad, builder);
       }
@@ -267,8 +267,8 @@ struct InsertValueOpInterfaceReverse
       // gradient at the insertion position.
       auto valIface = dyn_cast<AutoDiffTypeInterface>(value.getType());
       if (valIface && !gutils->isConstantValue(value)) {
-        Value valGrad = LLVM::ExtractValueOp::create(
-            builder, op->getLoc(), gradient, ivOp.getPosition());
+        Value valGrad = builder.create<LLVM::ExtractValueOp>(
+            op->getLoc(), gradient, ivOp.getPosition());
         gutils->addToDiffe(value, valGrad, builder);
       }
 
@@ -278,9 +278,9 @@ struct InsertValueOpInterfaceReverse
         Value zeroVal =
             valIface
                 ? valIface.createNullValue(builder, op->getLoc())
-                : LLVM::ZeroOp::create(builder, op->getLoc(), value.getType());
-        Value containerGrad = LLVM::InsertValueOp::create(
-            builder, op->getLoc(), gradient, zeroVal, ivOp.getPosition());
+                : builder.create<LLVM::ZeroOp>(op->getLoc(), value.getType());
+        Value containerGrad = builder.create<LLVM::InsertValueOp>(
+            op->getLoc(), gradient, zeroVal, ivOp.getPosition());
         gutils->addToDiffe(container, containerGrad, builder);
       }
     }
@@ -320,17 +320,17 @@ struct PointerClonableTypeInterface
       return nullptr;
     }
 
-    auto clone = llvm_ext::AllocOp::create(
-        builder, value.getLoc(), LLVM::LLVMPointerType::get(value.getContext()),
+    auto clone = builder.create<llvm_ext::AllocOp>(
+        value.getLoc(), LLVM::LLVMPointerType::get(value.getContext()),
         *ptrSize);
-    LLVM::MemcpyOp::create(builder, value.getLoc(), clone, value, *ptrSize,
+    builder.create<LLVM::MemcpyOp>(value.getLoc(), clone, value, *ptrSize,
                            /*isVolatile*/ false);
 
     return clone;
   }
 
   void freeClonedValue(Type self, OpBuilder &builder, Value value) const {
-    llvm_ext::FreeOp::create(builder, value.getLoc(), value);
+    builder.create<llvm_ext::FreeOp>(value.getLoc(), value);
   }
 };
 
@@ -346,16 +346,16 @@ public:
   mlir::Value createNullValue(mlir::Type self, OpBuilder &builder,
                               Location loc) const {
     auto structTy = cast<LLVM::LLVMStructType>(self);
-    Value result = LLVM::PoisonOp::create(builder, loc, structTy);
+    Value result = builder.create<LLVM::PoisonOp>(loc, structTy);
     for (auto &&[i, elemTy] : llvm::enumerate(structTy.getBody())) {
       auto elemIface = dyn_cast<AutoDiffTypeInterface>(elemTy);
       if (!elemIface) {
-        Value zero = LLVM::ZeroOp::create(builder, loc, elemTy);
-        result = LLVM::InsertValueOp::create(builder, loc, result, zero, i);
+        Value zero = builder.create<LLVM::ZeroOp>(loc, elemTy);
+        result = builder.create<LLVM::InsertValueOp>(loc, result, zero, i);
         continue;
       }
       Value nullElem = elemIface.createNullValue(builder, loc);
-      result = LLVM::InsertValueOp::create(builder, loc, result, nullElem, i);
+      result = builder.create<LLVM::InsertValueOp>(loc, result, nullElem, i);
     }
     return result;
   }
@@ -363,10 +363,10 @@ public:
   Value createAddOp(Type self, OpBuilder &builder, Location loc, Value a,
                     Value b) const {
     auto structTy = cast<LLVM::LLVMStructType>(self);
-    Value result = LLVM::PoisonOp::create(builder, loc, structTy);
+    Value result = builder.create<LLVM::PoisonOp>(loc, structTy);
     for (auto &&[i, elemTy] : llvm::enumerate(structTy.getBody())) {
-      Value aElem = LLVM::ExtractValueOp::create(builder, loc, a, i);
-      Value bElem = LLVM::ExtractValueOp::create(builder, loc, b, i);
+      Value aElem = builder.create<LLVM::ExtractValueOp>(loc, a, i);
+      Value bElem = builder.create<LLVM::ExtractValueOp>(loc, b, i);
       auto elemIface = dyn_cast<AutoDiffTypeInterface>(elemTy);
       Value sum;
       if (elemIface) {
@@ -374,7 +374,7 @@ public:
       } else {
         sum = aElem;
       }
-      result = LLVM::InsertValueOp::create(builder, loc, result, sum, i);
+      result = builder.create<LLVM::InsertValueOp>(loc, result, sum, i);
     }
     return result;
   }
@@ -406,9 +406,9 @@ static Value packIntoStruct(ValueRange values, OpBuilder &builder,
       llvm::map_to_vector(values, [](Value v) { return v.getType(); });
   auto structType =
       LLVM::LLVMStructType::getLiteral(builder.getContext(), resultTypes);
-  Value result = LLVM::PoisonOp::create(builder, loc, structType);
+  Value result = builder.create<LLVM::PoisonOp>(loc, structType);
   for (auto &&[i, v] : llvm::enumerate(values))
-    result = LLVM::InsertValueOp::create(builder, loc, result, v, i);
+    result = builder.create<LLVM::InsertValueOp>(loc, result, v, i);
 
   return result;
 }
@@ -435,7 +435,7 @@ public:
 
   Operation *createCall(Operation *self, OpBuilder &builder, Location loc,
                         ValueRange args) const {
-    return LLVM::CallOp::create(builder, loc, cast<LLVM::LLVMFuncOp>(self),
+    return builder.create<LLVM::CallOp>(loc, cast<LLVM::LLVMFuncOp>(self),
                                 args);
   }
 
@@ -443,10 +443,10 @@ public:
                           ValueRange retargs) const {
     if (retargs.size() > 1) {
       Value packedReturns = packIntoStruct(retargs, builder, loc);
-      return LLVM::ReturnOp::create(builder, loc, packedReturns);
+      return builder.create<LLVM::ReturnOp>(loc, packedReturns);
     }
 
-    return LLVM::ReturnOp::create(builder, loc, retargs);
+    return builder.create<LLVM::ReturnOp>(loc, retargs);
   }
 };
 

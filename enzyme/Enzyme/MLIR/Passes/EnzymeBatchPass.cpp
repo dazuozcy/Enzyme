@@ -86,7 +86,7 @@ LogicalResult handleCallOp(
     newOperands.push_back(mapper.lookup(operand));
 
   auto newCall =
-      func::CallOp::create(builder, callOp.getLoc(), batchedFunc.getName(),
+      builder.create<func::CallOp>(callOp.getLoc(), batchedFunc.getName(),
                            batchedFunc.getResultTypes(), newOperands);
 
   // Map the results
@@ -143,7 +143,7 @@ void batchCloneBlock(
 
     Operation *newOp = Operation::create(
         src.getLoc(), src.getName(), resultTypes, operands, src.getAttrs(),
-        mlir::PropertyRef(), successors, src.getNumRegions());
+        mlir::OpaqueProperties(nullptr), successors, src.getNumRegions());
 
     // Clone the regions.
     for (auto &&[oldReg, newReg] :

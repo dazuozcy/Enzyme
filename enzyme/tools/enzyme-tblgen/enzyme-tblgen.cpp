@@ -313,13 +313,13 @@ SmallVector<bool, 1> prepareArgs(const Twine &curIndent, raw_ostream &os,
               os << curIndent << INDENT << "for (auto &val : " << argName << "_"
                  << (idx - 1) << ") {\n";
               os << curIndent << INDENT << INDENT
-                 << "val = enzyme::BroadcastOp::create(builder, op.getLoc(), "
+                 << "val = builder.create<enzyme::BroadcastOp>(op.getLoc(), "
                     "val, "
                     "llvm::SmallVector<int64_t>({gutils->width}));\n";
               os << curIndent << INDENT << "}\n";
             } else {
               os << curIndent << " " << argName << "_" << (idx - 1)
-                 << " = enzyme::BroadcastOp::create(builder, \n"
+                 << " = builder.create<enzyme::BroadcastOp>(\n"
                  << curIndent << "   op.getLoc(),\n"
                  << curIndent << "   " << argName << "_" << (idx - 1) << ",\n"
                  << curIndent
@@ -592,7 +592,7 @@ bool handle(const Twine &curIndent, const Twine &argPattern, raw_ostream &os,
         } else {
           os << curIndent << INDENT << "if (gutils->width != 1)\n"
              << curIndent << INDENT << INDENT
-             << "imVal = enzyme::BroadcastOp::create(builder, imVal.getLoc(), "
+             << "imVal = builder.create<enzyme::BroadcastOp>(imVal.getLoc(), "
                 "imVal, SmallVector<int64_t>({gutils->width}));\n";
         }
         os << curIndent << INDENT << "}\n";
@@ -612,9 +612,10 @@ bool handle(const Twine &curIndent, const Twine &argPattern, raw_ostream &os,
         if (resultRoot->getNumArgs() > 1)
           PrintFatalError(pattern->getLoc(),
                           "only zero or single op constantfp supported");
-        os << cast<StringInit>(Def->getValueInit("dialect"))->getValue()
+        os << builder << ".create<"
+           << cast<StringInit>(Def->getValueInit("dialect"))->getValue()
            << "::" << cast<StringInit>(Def->getValueInit("opName"))->getValue()
-           << "::create(" << builder << ", op.getLoc(), ";
+           << ">(op.getLoc(), ";
         std::string ord;
         bool shadowType = false;
         if (resultRoot->getNumArgs() == 0) {
@@ -1150,8 +1151,8 @@ bool handle(const Twine &curIndent, const Twine &argPattern, raw_ostream &os,
           os << preop;
         }
         auto dialect = Def->getValueAsString("dialect");
-        os << dialect << "::" << opName << "::create(" << builder
-           << ", op.getLoc(), ";
+        os << builder << ".create<" << dialect << "::" << opName
+           << ">(op.getLoc(), ";
       } else {
         os << builder << ".Create" << opName << "(";
       }

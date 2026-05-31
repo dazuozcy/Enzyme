@@ -57,7 +57,7 @@ Type mlir::enzyme::MGradientUtilsReverse::getIndexType() {
 
 Value mlir::enzyme::MGradientUtilsReverse::insertInit(Type t) {
   OpBuilder builder(initializationBlock, initializationBlock->begin());
-  return enzyme::InitOp::create(builder,
+  return builder.create<enzyme::InitOp>(
                                 (initializationBlock->rbegin())->getLoc(), t);
 }
 
@@ -94,13 +94,13 @@ std::pair<Value, Value> MGradientUtilsReverse::getNewCache(Type t) {
 // cache is (might be) "pop only"
 Value MGradientUtilsReverse::initAndPushCache(Value v, OpBuilder &builder) {
   auto [pushCache, popCache] = getNewCache(getCacheType(v.getType()));
-  enzyme::PushOp::create(builder, v.getLoc(), pushCache, v);
+  builder.create<enzyme::PushOp>(v.getLoc(), pushCache, v);
   return popCache;
 }
 
 Value MGradientUtilsReverse::popCache(Value cache, OpBuilder &builder) {
-  return enzyme::PopOp::create(
-      builder, cache.getLoc(),
+  return builder.create<enzyme::PopOp>(
+      cache.getLoc(),
       cast<enzyme::CacheType>(cache.getType()).getType(), cache);
 }
 
