@@ -403,7 +403,13 @@ ScalarEvolution::ExitLimit MustExitScalarEvolution::computeExitLimitFromICmp(
   }
 
   // Simplify the operands before analyzing them.
+#if LLVM_VERSION_MAJOR >= 20
+  ICmpInst::Predicate TmpPred = Pred;
+  (void)SimplifyICmpOperands(TmpPred, LHS, RHS);
+  Pred = TmpPred;
+#else
   (void)SimplifyICmpOperands(Pred, LHS, RHS);
+#endif
 
   // If we have a comparison of a chrec against a constant, try to use value
   // ranges to answer this query.

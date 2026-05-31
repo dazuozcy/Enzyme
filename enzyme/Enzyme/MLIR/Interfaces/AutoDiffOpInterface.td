@@ -87,7 +87,7 @@ def ControlFlowAutoDiffOpInterface
                "::mlir::RegionSuccessor const&":$successor),
            /*methodBody=*/[{}],
            /*defaultImplementation*/
-           [{return regionBranchOp.getEntrySuccessorOperands(successor);}]>];
+            [{return regionBranchOp.getEntrySuccessorOperands(RegionBranchPoint::parent());}]>];
 }
 
 def ReverseAutoDiffOpInterface : OpInterface<"ReverseAutoDiffOpInterface"> {

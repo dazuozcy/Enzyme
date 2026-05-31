@@ -66,7 +66,7 @@ void createTerminator(MGradientUtils *gutils, mlir::Block *oBB,
 
   nBB->push_back(newInst->create(newInst->getLoc(), newInst->getName(),
                                  TypeRange(), retargs, newInst->getAttrs(),
-                                 mlir::PropertyRef(), newInst->getSuccessors(),
+                                 mlir::OpaqueProperties(nullptr), newInst->getSuccessors(),
                                  newInst->getNumRegions()));
   gutils->erase(newInst);
   return;
@@ -158,7 +158,7 @@ FunctionOpInterface mlir::enzyme::MEnzymeLogic::CreateForwardDiff(
 
       OpBuilder builder(gutils->oldFunc.getContext());
       builder.setInsertionPointToEnd(newBB);
-      LLVM::UnreachableOp::create(builder, gutils->oldFunc.getLoc());
+      builder.create<LLVM::UnreachableOp>(gutils->oldFunc.getLoc());
       continue;
     }
 

@@ -54,16 +54,16 @@ struct LoadOpInterfaceReverse
 
         if (!gutils->AtomicAdd) {
           Value loadedGradient =
-              memref::LoadOp::create(builder, loadOp.getLoc(), memrefGradient,
+              builder.create<memref::LoadOp>(loadOp.getLoc(), memrefGradient,
                                      ArrayRef<Value>(retrievedArguments));
           Value addedGradient = iface.createAddOp(builder, loadOp.getLoc(),
                                                   loadedGradient, gradient);
-          memref::StoreOp::create(builder, loadOp.getLoc(), addedGradient,
+          builder.create<memref::StoreOp>(loadOp.getLoc(), addedGradient,
                                   memrefGradient,
                                   ArrayRef<Value>(retrievedArguments));
         } else {
-          memref::AtomicRMWOp::create(
-              builder, loadOp.getLoc(), arith::AtomicRMWKind::addf, gradient,
+          builder.create<memref::AtomicRMWOp>(
+              loadOp.getLoc(), arith::AtomicRMWKind::addf, gradient,
               memrefGradient, ArrayRef<Value>(retrievedArguments));
         }
       }
@@ -127,7 +127,7 @@ struct StoreOpInterfaceReverse
       if (!iface.isMutable()) {
         if (!gutils->isConstantValue(val)) {
           Value loadedGradient =
-              memref::LoadOp::create(builder, storeOp.getLoc(), memrefGradient,
+              builder.create<memref::LoadOp>(storeOp.getLoc(), memrefGradient,
                                      ArrayRef<Value>(retrievedArguments));
           gutils->addToDiffe(val, loadedGradient, builder);
         }
@@ -136,7 +136,7 @@ struct StoreOpInterfaceReverse
             cast<AutoDiffTypeInterface>(gutils->getShadowType(val.getType()))
                 .createNullValue(builder, op->getLoc());
 
-        memref::StoreOp::create(builder, storeOp.getLoc(), zero, memrefGradient,
+        builder.create<memref::StoreOp>(storeOp.getLoc(), zero, memrefGradient,
                                 ArrayRef<Value>(retrievedArguments));
       }
     }
@@ -193,8 +193,8 @@ struct SubViewOpInterfaceReverse
     auto subviewOp = cast<memref::SubViewOp>(op);
     auto newSubviewOp = cast<memref::SubViewOp>(gutils->getNewFromOriginal(op));
     if (!gutils->isConstantValue(subviewOp.getSource())) {
-      Value shadow = memref::SubViewOp::create(
-          builder, op->getLoc(), newSubviewOp.getType(),
+      Value shadow = builder.create<memref::SubViewOp>(
+          op->getLoc(), newSubviewOp.getType(),
           gutils->invertPointerM(subviewOp.getSource(), builder),
           newSubviewOp.getMixedOffsets(), newSubviewOp.getMixedSizes(),
           newSubviewOp.getMixedStrides());
@@ -215,21 +215,21 @@ public:
 
     for (auto [i, s] : llvm::enumerate(MT.getShape())) {
       if (s == ShapedType::kDynamic) {
-        Value dim = arith::ConstantIndexOp::create(builder, value.getLoc(), i);
+        Value dim = builder.create<arith::ConstantIndexOp>(value.getLoc(), i);
         dynamicSizes.push_back(
-            memref::DimOp::create(builder, value.getLoc(), value, dim));
+            builder.create<memref::DimOp>(value.getLoc(), value, dim));
       }
     }
 
     auto clone =
-        memref::AllocOp::create(builder, value.getLoc(), self, dynamicSizes);
-    memref::CopyOp::create(builder, value.getLoc(), value, clone);
+        builder.create<memref::AllocOp>(value.getLoc(), self, dynamicSizes);
+    builder.create<memref::CopyOp>(value.getLoc(), value, clone);
 
     return clone;
   }
 
   void freeClonedValue(mlir::Type self, OpBuilder &builder, Value value) const {
-    memref::DeallocOp::create(builder, value.getLoc(), value);
+    builder.create<memref::DeallocOp>(value.getLoc(), value);
   };
 };
 
@@ -250,7 +250,7 @@ public:
     for (unsigned i = 0; i < numDynamicDims; ++i) {
       dynamicSizes[i] = builder.create<mlir::arith::ConstantIndexOp>(loc, 0);
     }
-    return mlir::memref::AllocOp::create(builder, loc, MT, dynamicSizes);
+    return builder.create<memref::AllocOp>(loc, MT, dynamicSizes);
   }
 
   Value createAddOp(Type self, OpBuilder &builder, Location loc, Value a,
@@ -276,7 +276,7 @@ public:
     if (auto iface = dyn_cast<AutoDiffTypeInterface>(MT.getElementType())) {
       if (!iface.isMutable()) {
         Value zero = iface.createNullValue(builder, loc);
-        linalg::FillOp::create(builder, loc, zero, val);
+        builder.create<linalg::FillOp>(loc, zero, val);
       }
     } else {
       return failure();

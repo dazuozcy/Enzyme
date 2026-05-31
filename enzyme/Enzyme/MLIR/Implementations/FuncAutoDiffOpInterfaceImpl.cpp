@@ -86,8 +86,8 @@ public:
         fwdArguments.push_back(gutils->invertPointerM(arg, builder));
     }
 
-    auto fwdCallOp = func::CallOp::create(
-        builder, orig->getLoc(), cast<func::FuncOp>(forwardFn), fwdArguments);
+    auto fwdCallOp = builder.create<func::CallOp>(
+        orig->getLoc(), cast<func::FuncOp>(forwardFn), fwdArguments);
 
     SmallVector<Value> primals;
     primals.reserve(nret);
@@ -189,8 +189,8 @@ public:
       revArguments.push_back(gutils->diffe(result, builder));
     }
 
-    auto revCallOp = func::CallOp::create(
-        builder, orig->getLoc(), cast<func::FuncOp>(revFn), revArguments);
+    auto revCallOp = builder.create<func::CallOp>(
+        orig->getLoc(), cast<func::FuncOp>(revFn), revArguments);
 
     int revIndex = 0, fwdIndex = 0;
     for (auto [arg, act] : llvm::zip_equal(callOp.getOperands(), ArgActivity)) {
@@ -245,12 +245,12 @@ public:
 
   Operation *createCall(Operation *self, OpBuilder &builder, Location loc,
                         ValueRange args) const {
-    return func::CallOp::create(builder, loc, cast<func::FuncOp>(self), args);
+    return builder.create<func::CallOp>(loc, cast<func::FuncOp>(self), args);
   }
 
   Operation *createReturn(Operation *self, OpBuilder &builder, Location loc,
                           ValueRange args) const {
-    return func::ReturnOp::create(builder, loc, args);
+    return builder.create<func::ReturnOp>(loc, args);
   }
 };
 

@@ -38,11 +38,11 @@ mlir::TypedAttr mlir::enzyme::getConstantAttr(mlir::Type type,
                                     ArrayRef<APFloat>(values));
     } else if (auto CET = dyn_cast<ComplexType>(T.getElementType())) {
       auto ET = cast<FloatType>(CET.getElementType());
-      mlir::Complex<APFloat> values[] = {
-          mlir::Complex<APFloat>(APFloat(ET.getFloatSemantics(), value),
+      std::complex<APFloat> values[] = {
+          std::complex<APFloat>(APFloat(ET.getFloatSemantics(), value),
                                  APFloat(ET.getFloatSemantics(), "0"))};
       return DenseElementsAttr::get(cast<ShapedType>(type),
-                                    ArrayRef<mlir::Complex<APFloat>>(values));
+                                    ArrayRef<std::complex<APFloat>>(values));
     } else {
       llvm::errs() << " unsupported eltype: " << T.getElementType()
                    << " of type " << type << "\n";
@@ -140,7 +140,7 @@ void mlir::enzyme::detail::branchingForwardHandler(Operation *inst,
   gutils->getNewFromOriginal(inst->getBlock())
       ->push_back(newInst->create(newInst->getLoc(), newInst->getName(),
                                   TypeRange(), newVals, attrs,
-                                  mlir::PropertyRef(), newInst->getSuccessors(),
+                                  mlir::OpaqueProperties(nullptr), newInst->getSuccessors(),
                                   newInst->getNumRegions()));
   gutils->erase(newInst);
   return;
@@ -297,10 +297,10 @@ void mlir::enzyme::detail::regionTerminatorForwardHandler(
         successors);
 
     for (auto &successor : successors) {
-      OperandRange operandRange = termIface.getSuccessorOperands(successor);
+      OperandRange operandRange = termIface.getSuccessorOperands(RegionBranchPoint(termIface->getParentRegion()));
       ValueRange targetValues =
           successor.isParent() ? parentOp->getResults()
-                               : regionBranchOp.getSuccessorInputs(successor);
+                               : successor.getSuccessorInputs();
       assert(operandRange.size() == targetValues.size());
       for (auto &&[i, target] : llvm::enumerate(targetValues)) {
         if (!gutils->isConstantValue(target))
@@ -365,7 +365,7 @@ LogicalResult mlir::enzyme::detail::controlFlowForwardHandler(
 
     ValueRange targetValues =
         successor.isParent() ? op->getResults()
-                             : regionBranchOp.getSuccessorInputs(successor);
+                             : successor.getSuccessorInputs();
 
     // Need to know which of the arguments are being forwarded to from
     // operands.
